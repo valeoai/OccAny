@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OccAny: Generalized Unconstrained Urban 3D Occupancy</title>
+    <link rel="icon" type="image/jpeg" href="images/logo.jpg">
+    <!-- Model Viewer for 3D visualization -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+    <!-- Three.js for PLY to GLB conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <!-- <div class="logo-container"> -->
+            <!-- <img src="images/logo.jpg" alt="OccAny Logo" style="max-width: 200px; height: auto;"> -->
+            <!-- </div> -->
+            <div class="conference-tag">CVPR 2026</div>
+            <h1>
+                <span class="project-name"><span class="gradient-text">OccAny</span></span>:
+                Generalized Unconstrained Urban 3D Occupancy
+            </h1>
+            <!-- <p class="subtitle">
+                The first generalized unconstrained urban 3D occupancy model.
+            </p> -->
+
+
+            <div class="authors">
+                <a href="https://anhquancao.github.io/" target="_blank">Anh-Quan Cao</a>, <a
+                    href="https://tuanhungvu.github.io/" target="_blank">Tuan-Hung Vu</a>
+            </div>
+
+            <div class="affiliations">
+                Valeo.ai, Paris, France
+            </div>
+
+            <!-- <div class="keywords">
+                <span class="keyword-tag">Generalized 3D Occupancy</span>
+                <span class="keyword-tag">Segmentation Forcing</span>
+                <span class="keyword-tag">Novel View Rendering</span>
+            </div> -->
+
+            <div class="buttons">
+                <a href="OccAny_CVPR_26.pdf" class="btn" target="_blank">Paper</a>
+                <a href="https://github.com/valeoai/OccAny" class="btn" target="_blank">Code</a>
+            </div>
+        </header>
+
+        <div class="content">
+            <!-- Teaser Image -->
+            <div class="section">
+                <p class="image-caption"
+                    style="font-size: 1.15em; background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%); padding: 16px 24px; border-radius: 12px; border-left: 5px solid #e6872d; box-shadow: 0 4px 6px rgba(0,0,0,0.05); color: #2d3748; line-height: 1.6; max-width: auto; margin: 0 auto 20px auto;">
+                    <span style="font-size: 1.2em; margin-right: 8px;">🌟</span>
+                    One <strong><span class="gradient-text">OccAny</span> model</strong> for <b>any sensor rig, any
+                        domain</b>, without input poses or
+                    intrinsics.
+                </p>
+                <div class="demo-container">
+
+                    <div class="teaser-video-grid">
+                        <div class="video-tag-container">
+                            <video class="teaser-video" autoplay loop muted playsinline>
+                                <source src="videos/08_5frames.mp4" type="video/mp4">
+                            </video>
+                            <span class="video-tag">Kitti Sequence</span>
+                        </div>
+                        <div class="video-tag-container">
+                            <video class="teaser-video" autoplay loop muted playsinline>
+                                <source src="videos/nuscenes.mp4" type="video/mp4">
+                            </video>
+                            <span class="video-tag">Nuscenes</span>
+                        </div>
+                        <div class="video-tag-container">
+                            <video class="teaser-video" autoplay loop muted playsinline>
+                                <source src="videos/08_1frame.mp4" type="video/mp4">
+                            </video>
+                            <span class="video-tag">Kitti Monocular</span>
+                        </div>
+                        <div class="video-tag-container">
+                            <video class="teaser-video" autoplay loop muted playsinline>
+                                <source src="videos/waymo.mp4" type="video/mp4">
+                            </video>
+                            <span class="video-tag">Waymo</span>
+                        </div>
+                        <div class="video-tag-container">
+                            <video class="teaser-video" autoplay loop muted playsinline>
+                                <source src="videos/ddad.mp4" type="video/mp4">
+                            </video>
+                            <span class="video-tag">DDAD</span>
+                        </div>
+                        <div class="video-tag-container">
+                            <video class="teaser-video" autoplay loop muted playsinline>
+                                <source src="videos/pandaset.mp4" type="video/mp4">
+                            </video>
+                            <span class="video-tag">PandaSet</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Key Contributions -->
+            <div class="section">
+                <h2 class="section-title">Key Contributions</h2>
+                <div class="contribution-grid">
+                    <!-- 3D Reconstruction Column -->
+                    <div class="contribution-card">
+                        <img src="images/occany_recon_web.png" alt="3D Reconstruction" class="contribution-image">
+                        <ul class="contribution-list">
+                            <li>Improve geometry reasoning w/ segmentation foundation model</li>
+                            <li>High-fidelity segmentation cues</li>
+                            <li>Resolve geometric ambiguity</li>
+                            <li>Promptable semantic/instance segmentation features</li>
+                        </ul>
+                    </div>
+
+                    <!-- Novel View Rendering Column -->
+                    <div class="contribution-card novel-view-card">
+                        <img src="images/occany_gen_web.png" alt="Novel View Rendering" class="contribution-image">
+                        <ul class="contribution-list">
+                            <li>High-fidelity Novel View Rendering</li>
+                            <li>Resolves occlusions</li>
+                            <li>Implicit dynamic modeling</li>
+                            <li>Test-time augmentation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Qualitative Comparison Section -->
+            <div class="section">
+                <h2 class="section-title">Qualitative Comparison</h2>
+
+                <div class="interactive-vis-container" style="margin-top: 0;">
+                    <p class="vis-intro">
+                        Geometry Occupancy visualizations with Ground-Truth (GT) overlay.
+                    </p>
+
+                    <div
+                        style="width: 100%; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); background: #000;">
+                        <video autoplay loop muted playsinline style="width: 100%; display: block;">
+                            <source src="videos/demo_occany_720p.mp4" type="video/mp4">
+                        </video>
+                    </div>
+
+                    <div class="highlight-box" style="margin-top: 30px; margin-bottom: 0;">
+                        <span style="font-size: 1.2em; margin-right: 8px;">💡</span>
+                        <strong>Note:</strong> False-positive voxels are displayed as semi-transparent gray, while
+                        colors indicate the semantic labels of true-positive voxels from the ground truth overlay.
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Interactive Visualization Section -->
+            <!-- <div class="section">
+                <h2 class="section-title">More Interactive Visualization</h2>
+                <div class="interactive-vis-container">
+                    <p class="vis-intro">
+                        <span class="gradient-text">OccAny</span> occupancy reconstruction on diverse urban scenes. Click any thumbnail below to inspect
+                        qualitative geometry outputs.<br>
+                        <span style="font-size: 0.95em; color: #ea580c;">💡 Hover over thumbnails to preview their image
+                            sequences</span>
+                    </p>
+                    <div class="main-viewer" id="mainViewer">
+                        <div class="pointcloud-container" style="border-radius: 15px;">
+                            <model-viewer id="modelViewer" camera-controls scale="5 5 5" touch-action="pan-x"
+                                auto-rotate-delay="0" shadow-intensity="0" min-camera-orbit="auto 0deg auto"
+                                max-camera-orbit="auto 180deg auto" style="background-color: #ffffff;"
+                                environment-image="neutral" exposure="1.0">
+                                <div class="loading-indicator" id="loadingIndicator" slot="poster">
+                                    <div class="loading-spinner"></div>
+                                    <div>Loading 3D Model...</div>
+                                </div>
+                            </model-viewer>
+                            <div class="viewer-info" id="viewerInfo">Sequence Scene 1</div>
+                            <div class="viewer-counter" id="viewerCounter">1 / 11</div>
+                            <div class="camera-hint" title="Drag to rotate | Right-click to pan | Scroll to zoom">💡
+                                Controls</div>
+                        </div>
+                    </div>
+
+                    <div class="thumbnail-carousel">
+                        <button class="carousel-nav prev" onclick="scrollCarousel(-1)">‹</button>
+                        <div class="thumbnail-track" id="thumbnailTrack">
+                        </div>
+                        <button class="carousel-nav next" onclick="scrollCarousel(1)">›</button>
+                    </div>
+                </div>
+            </div> -->
+
+
+
+
+            <!-- Citation Section -->
+            <div class="section">
+                <h2 class="section-title">Citation</h2>
+                <pre class="citation">
+@InProceedings{cao2026occany,
+      title={OccAny: Generalized Unconstrained Urban 3D Occupancy},
+      author={Anh-Quan Cao and Tuan-Hung Vu},
+      year={2026},
+      booktitle={CVPR}
+}
+                </pre>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2026 <span class="gradient-text">OccAny</span> Project | <a href="https://valeoai.github.io/"
+                target="_blank">Valeo.ai</a></p>
+        <p style="margin-top: 10px; opacity: 0.8;"><span class="gradient-text">OccAny</span>: Generalized Unconstrained
+            Urban 3D Occupancy</p>
+    </footer>
+
+    <!-- Video Modal -->
+    <div id="videoModal" class="modal">
+        <span class="close-modal" id="closeModal">&times;</span>
+        <div class="modal-content">
+            <video id="modalVideo" controls autoplay loop muted playsinline>
+                <source src="" type="video/mp4">
+            </video>
+            <div id="modalVideoTag" class="modal-video-tag"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
