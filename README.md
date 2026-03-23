@@ -338,7 +338,7 @@ voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
 
 ## License
 
-This project is licensed under the Apache License 2.0, see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0, see the [LICENSE](LICENSE.txt) file for details.
 
 ## Acknowledgments
 We thanks the authors of these great repositories [Dust3r](https://github.com/naver/dust3r), [Must3r](https://github.com/naver/must3r), [Depth-Anything-3](https://github.com/ByteDance-Seed/depth-anything-3), [SAM2](https://github.com/facebookresearch/sam2), [SAM3](https://github.com/facebookresearch/sam3) and [viser](https://github.com/nerfstudio-project/viser).
