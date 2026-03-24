@@ -192,10 +192,10 @@ python -c "from huggingface_hub import snapshot_download; snapshot_download(repo
 
 Expected files under `checkpoints/`:
 
-- `groundingdino_swinb_cogcoor.pth`
 - `occany_da3_gen.pth`
 - `occany_da3_recon.pth`
 - `occany_must3r.pth`
+- `groundingdino_swinb_cogcoor.pth`
 - `sam2.1_hiera_large.pt`
 
 ## Inference
