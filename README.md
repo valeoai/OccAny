@@ -14,8 +14,8 @@
 <br>
 
 [![Project page](https://img.shields.io/badge/Project_Page-OccAny-darkgreen?style=flat-square)](https://valeoai.github.io/OccAny/)
-
-**Paper and arXiv links will be added once they are public.**
+[![arXiv](https://img.shields.io/badge/arXiv-2603.23502-b31b1b.svg?style=flat-square)](http://arxiv.org/abs/2603.23502)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Checkpoints-yellow?style=flat-square)](https://huggingface.co/anhquancao/OccAny/tree/main/checkpoints)
 
 **TL;DR:** A unified framework for generalized unconstrained urban 3D occupancy prediction.
 <!-- <p align="center">
@@ -182,6 +182,10 @@ PY
 ```
 
 ## Checkpoints
+
+Model checkpoints are hosted on Hugging Face:
+
+- https://huggingface.co/anhquancao/OccAny/tree/main/checkpoints
 
 Download checkpoints with:
 
