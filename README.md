@@ -33,12 +33,12 @@ https://github.com/user-attachments/assets/a3abde5b-c170-4b5d-818c-262b0df2546f
 
 ---
 
-OccAny provides demo and inference code for urban 3D occupancy under unconstrained inputs. This repository currently includes two model variants:
+OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluation utilities, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This public release includes two model variants:
 
-- **OccAny** which is based on Must3R and SAM2,
-- **OccAny+** which is based on Depth Anything 3 and SAM3
+- **OccAny**, based on Must3R + SAM2
+- **OccAny+**, based on Depth Anything 3 + SAM3
 
-The repository includes sample RGB inputs in `demo_data/input`, pretrained weights in `checkpoints/`, and visualization tools for both point clouds and voxel grids.
+The repository also includes sample RGB scenes in `demo_data/input`, pretrained weights in `checkpoints/`, and viewers for both point-cloud and voxel-grid outputs.
 
 ## Citation
 
@@ -55,23 +55,29 @@ If you find this work or code useful, please cite the paper and consider starrin
 
 ## Table of contents
 
+- [Roadmap](#roadmap)
 - [Installation](#installation)
 - [Checkpoints](#checkpoints)
 - [Quick start](#quick-start)
 - [Inference recipes](#inference-recipes)
 - [Key inference flags](#key-inference-flags)
+- [Evaluation](#evaluation)
 - [Visualization](#visualization)
 - [Outputs](#outputs)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
-## 📝 TO-DO List
+## Roadmap
 
 - [x] Inference code for OccAny (Must3R + SAM2) and OccAny+ (DA3 + SAM3)
 - [x] Pretrained checkpoints
-- [ ] Evaluation code for nuScenes and KITTI
+- [x] Evaluation code for nuScenes and KITTI
 - [ ] Dataset preparation scripts for Waymo, PandaSet, DDAD, VKitti, ONCE
 - [ ] Training code for OccAny (Must3R + SAM2) and OccAny+ (DA3 + SAM3)
 
 ## Installation
+
+The commands below create the environment used for the public release and keep all required third-party dependencies local to this repository.
 
 ### 1. Clone the repository
 
@@ -113,7 +119,7 @@ pip install torch-scatter --no-cache-dir --no-build-isolation
 
 ### 6. Use the vendored third-party code
 
-OccAny relies on the copies bundled in `third_party/`:
+OccAny relies on the vendored copies bundled in `third_party/`:
 
 - `third_party/croco` for `croco`
 - `third_party/dust3r` for `dust3r`
@@ -185,7 +191,7 @@ PY
 
 Model checkpoints are hosted on Hugging Face:
 
-- https://huggingface.co/anhquancao/OccAny/tree/main/checkpoints
+- [anhquancao/OccAny/tree/main/checkpoints](https://huggingface.co/anhquancao/OccAny/tree/main/checkpoints)
 
 Download checkpoints with:
 
@@ -202,15 +208,19 @@ Expected files under `checkpoints/`:
 - `groundingdino_swinb_cogcoor.pth`
 - `sam2.1_hiera_large.pt`
 
-## Inference
+## Quick start
 
-After installation, the demo commands below can be run as-is. By default:
+After installation and checkpoint download, you can run the demo commands below from the repo root as-is. By default:
 
 - RGB inputs are read from `./demo_data/input`
 - Outputs are written to `./demo_data/output`
-- The repo already includes sample input scenes such as `kitti_08_1390` and `nuscenes_scenes-0039`
+- The repo already includes sample scenes such as `kitti_08_1390` and `nuscenes_scenes-0039`
 
-### OccAny+ (Depth Anything 3 + SAM3)
+### Inference recipes
+
+The following presets reproduce the default demo pipeline for each released model variant.
+
+#### OccAny+ (Depth Anything 3 + SAM3)
 
 ```bash
 python inference.py \
@@ -229,7 +239,7 @@ python inference.py \
   --model occany_da3
 ```
 
-### OccAny (Must3R + SAM2)
+#### OccAny (Must3R + SAM2)
 
 ```bash
 python inference.py \
@@ -251,6 +261,9 @@ python inference.py \
 ## Key inference flags
 
 The most commonly adjusted flags fall into three groups: common flags, semantic flags, and generation-specific flags. If you only want reconstruction output, omit `--gen` and any flag whose scope below is `Generation` or `Generation + semantic`.
+
+<details>
+<summary>List of inference flags</summary>
 
 | Flag | Scope | Description |
 | --- | --- | --- |
@@ -275,11 +288,357 @@ The most commonly adjusted flags fall into three groups: common flags, semantic 
 | `--gen_semantic_from_distill_sam3` | Generation + semantic | For `pretrained@SAM3`, infer generated-view semantics from distilled SAM3 features when available |
 | `--apply_majority_pooling` | Post-processing | Apply 3x3x3 majority pooling to the fused voxel grid |
 
+</details>
+
+
+## Evaluation
+
+This section covers the end-to-end evaluation workflow for KITTI and nuScenes using the provided shell and SLURM wrappers.
+
+
+### Download evaluation datasets
+#### KITTI
+
+Download the following assets:
+
+- The **Semantic Scene Completion dataset v1.1** (SemanticKITTI voxel data, 700 MB) from the [SemanticKITTI website](http://www.semantic-kitti.org/dataset.html#download)
+- The **KITTI Odometry Benchmark calibration data** (calibration files, 1 MB) and **RGB images** (color, 65 GB) from the [KITTI Odometry website](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)
+
+The dataset folder at **/path/to/kitti** should have the following structure:
+
+```
+└── /path/to/kitti/
+  └── dataset
+    ├── poses
+    └── sequences
+```
+
+#### nuScenes
+
+1. Download nuScenes with the following script. By default, it downloads to `$PROJECT/data/nuscenes`.
+
+```bash
+export PROJECT=$PWD
+mkdir -p $PROJECT/data/nuscenes
+python dataset_setup/nuscenes/download.py --download_dir $PROJECT/data/nuscenes --output_dir $PROJECT/data/nuscenes --download_workers 16
+```
+
+2. Install the `nuscenes-devkit`:
+
+```bash
+pip install nuscenes-devkit --no-cache-dir
+```
+
+3. Download the voxel ground truth from [Occ3D-nuScenes](https://github.com/Tsinghua-MARS-Lab/Occ3D), including the following files:
+
+```bash
+annotations.json
+gts.tar.gz
+imgs.tar.gz
+```
+
+4. Extract them under `$PROJECT/data/nuscenes`. You should then have the following structure:
+
+```
+$PROJECT/data/nuscenes/
+├── annotations.json
+├── can_bus/
+├── gts/
+├── imgs/
+├── maps/
+├── samples/
+├── sweeps/
+├── v1.0-test/
+└── v1.0-trainval/
+```
+
+
+### Prepare output and dataset roots
+
+Set the repo root as `PROJECT`, choose an evaluation scratch/output root, and create the directories used for cached preprocessing outputs, voxel predictions, and visualization dumps:
+
+```bash
+export PROJECT=$PWD
+export SCRATCH=$PWD/eval_output
+mkdir -p \
+  "$SCRATCH/ssc_voxel_pred" \
+  "$SCRATCH/ssc_output" \
+  "$SCRATCH/data/kitti_processed" \
+  "$SCRATCH/data/nuscenes_processed"
+```
+
+By default, the shell wrappers look for raw datasets under `$PROJECT/data/kitti` and `$PROJECT/data/nuscenes`. If your datasets live elsewhere, override the roots before running the preset commands:
+
+```bash
+export KITTI_ROOT=/path/to/kitti
+export NUSCENES_ROOT=/path/to/occ3d_nuscenes
+```
+
+Before running the box extraction scripts or the evaluation pipeline, make sure the vendored Grounded-SAM-2 / GroundingDINO deformable-attention extension is built:
+
+```bash
+pip install -e third_party/Grounded-SAM-2
+# REQUIRE GCC > 9
+pip install --no-build-isolation -e third_party/Grounded-SAM-2/grounding_dino
+```
+
+The second command builds the GroundingDINO deformable-attention extension (`groundingdino/_C`). If you see errors such as `NameError: name '_C' is not defined` inside `ms_deform_attn.py`, rerun this install step in your `occany` environment.
+
+Before evaluation, pre-extract the GroundingDINO detection boxes once so later evaluation runs can reuse the cached detections instead of recomputing them every time:
+
+```bash
+python extract_gdino_boxes_kitti.py --image_size 1216 --box_threshold 0.05 --text_threshold 0.05
+python extract_gdino_boxes_nuscenes.py --image_size 1328 --box_threshold 0.05 --text_threshold 0.05
+```
+
+These commands write cached boxes as `boxes.npz` files under:
+
+```text
+$SCRATCH/data/kitti_processed/resized_1216_box5_text5_DINOB/<sequence>_<frame_id>/boxes.npz
+$SCRATCH/data/nuscenes_processed/resized_1328_box5_text5_DINOB/<scene_name>/<frame_token>_<camera_name>/boxes.npz
+```
+
+The cache folder name follows this pattern:
+
+```text
+resized_${image_size}_box${int(box_threshold*100)}_text${int(text_threshold*100)}_DINOB
+```
+
+This is part of the evaluation pipeline: the maintained `sh/eval_occany.sh` presets pass `--boxes_folder resized_1216_box5_text5_DINOB` for KITTI and `--boxes_folder resized_1328_box5_text5_DINOB` for nuScenes, so `extract_output_occany.py` reuses these cached detections during voxel extraction. Running box extraction once up front usually makes later evaluation runs much faster.
+
+For KITTI, use a single `KITTI_ROOT` that contains both the SemanticKITTI voxel labels and the KITTI odometry RGB images in the same tree (as shown above). Step 2 (`compute_metrics_from_saved_voxels.py`) only needs `KITTI_ROOT` for KITTI or `NUSCENES_ROOT` for NuScenes.
+
+`sh/eval_occany.sh` writes voxel predictions under `$SCRATCH/ssc_voxel_pred/<preset-output-dir>/...` and sampled visualization artifacts under `$SCRATCH/ssc_output/<preset-output-dir>/...`.
+
+
+
+
+
+
+### Local shell workflow
+
+> [!CAUTION] 
+> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [SLURM](#slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
+
+> [!NOTE]
+> To maximize performance, some presets use dense novel-view sampling and therefore generate roughly 150 to 180 views. You can reduce runtime by lowering `-vpi` (the number of generated views per reconstruction view). In general, the total number of novel views is `n_recon x args.vpi x (3 if args.rot > 0 else 1)`.
+
+Evaluation is a two-step workflow:
+
+1. Run `extract_output_occany.py` through `sh/eval_occany.sh` (or `slurm/eval_occany.slurm`) to save voxel predictions.
+2. Run `compute_metrics_from_saved_voxels.py` through `sh/compute_metric.sh` (or `slurm/compute_metric.slurm`) to compute SSC metrics from the saved `voxel_predictions.pkl` files.
+
+
+Run both commands in each block from the repo root. Each block below mirrors the corresponding SLURM example without the `sbatch` wrapper.
+
+#### OccAny
+
+##### KITTI 5-frame geometry
+
+```bash
+EXP_LIST=occany EXP_ID=0 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=0 bash sh/compute_metric.sh
+```
+
+##### KITTI 1-frame geometry
+
+```bash
+EXP_LIST=occany EXP_ID=1 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=1 bash sh/compute_metric.sh
+```
+
+##### nuScenes 5-frame geometry
+
+```bash
+EXP_LIST=occany EXP_ID=2 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=2 bash sh/compute_metric.sh
+```
+
+##### nuScenes surround geometry
+
+```bash
+EXP_LIST=occany EXP_ID=3 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=3 bash sh/compute_metric.sh
+```
+
+##### KITTI 5-frame distill semantic
+
+```bash
+EXP_LIST=occany EXP_ID=4 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=4 bash sh/compute_metric.sh
+```
+
+
+##### nuScenes surround distill semantic
+
+```bash
+EXP_LIST=occany EXP_ID=5 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=5 bash sh/compute_metric.sh
+```
+
+
+
+##### KITTI 5-frame pretrained semantic
+
+```bash
+EXP_LIST=occany EXP_ID=6 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=6 bash sh/compute_metric.sh
+```
+
+
+
+##### nuScenes surround pretrained semantic
+```bash
+EXP_LIST=occany EXP_ID=7 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany EXP_ID=7 bash sh/compute_metric.sh
+```
+
+
+
+#### OccAny+
+
+##### KITTI 5-frame geometry
+
+```bash
+EXP_LIST=occany_plus EXP_ID=0 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany_plus EXP_ID=0 bash sh/compute_metric.sh
+```
+
+##### nuScenes surround geometry
+
+```bash
+EXP_LIST=occany_plus EXP_ID=1 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=separate EXP_LIST=metric_occany_plus EXP_ID=1 bash sh/compute_metric.sh
+```
+
+##### KITTI 5-frame distill semantic
+
+```bash
+EXP_LIST=occany_plus EXP_ID=2 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=2 bash sh/compute_metric.sh
+```
+
+##### nuScenes surround distill semantic
+
+```bash
+EXP_LIST=occany_plus EXP_ID=3 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=3 bash sh/compute_metric.sh
+```
+
+##### KITTI 5-frame pretrained semantic
+
+```bash
+EXP_LIST=occany_plus EXP_ID=4 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=4 bash sh/compute_metric.sh
+```
+
+##### nuScenes surround pretrained semantic
+
+```bash
+EXP_LIST=occany_plus EXP_ID=5 bash sh/eval_occany.sh
+USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=5 bash sh/compute_metric.sh
+```
+
+
+### SLURM
+
+Some extraction presets can generate up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script therefore runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`). Each example below submits the extraction job first and then chains the metric job with `--dependency=afterany:$(...)`, so the metric job waits until the full extraction array finishes. The public SLURM wrappers keep the Karolina-HPC defaults (`-A eu-25-92`, `--partition=qgpu`, `--hint=nomultithread`, `--cpus-per-task=16`, and `conda activate occany`); update those settings to match your cluster.
+
+#### OccAny
+
+##### KITTI 5-frame geometry (Tab. 1)
+Precision, Recall, IoU: 36.79, 46.70, 25.91
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=0,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=0,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### KITTI 1-frame geometry (Tab. 2)
+Precision, Recall, IoU: 45.64, 33.66, 24.03
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=1,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=1,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### nuScenes 5-frame geometry (Tab. 1)
+Precision, Recall, IoU: 36.09, 40.39, 23.55
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=2,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=2,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### nuScenes surround geometry (Tab. 3)
+Precision, Recall, IoU: 45.04, 58.54, 34.15
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=3,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=3,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### KITTI 5-frame distill semantic (Tab. 5, 6)
+mIoU: 7.30, mIoU^{sc}: 13.54 (Slightly higher than 7.28, 13.53 in paper)
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=4,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=4,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### nuScenes surround distill semantic (Tab. 5, 6)
+mIoU: 6.65, mIoU^{sc}: 10.31 (Slight variation w.r.t 6.66, 10.32 in paper)
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=5,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=5,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+
+##### KITTI 5-frame pretrained semantic (Tab. 7)
+mIoU: 7.62, mIoU^{sc}: 13.75 (Slight variation w.r.t 7.67, 13.75 in paper)
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=6,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=6,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### nuScenes surround pretrained semantic (Tab. 7)
+mIoU: 7.42, mIoU^{sc}: 10.78
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany,EXP_ID=7,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany,EXP_ID=7,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+#### OccAny+
+
+For OccAny+, geometry metrics use separate pooling, while semantic metrics use unified pooling (pool geometry first, then semantics).
+##### KITTI 5-frame geometry (Tab. 5)
+Precision, Recall, IoU: 38.11, 49.13, 27.33
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=0,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=0,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### nuScenes surround geometry (Tab. 5)
+Precision, Recall, IoU: 46.37, 54.67, 33.49
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=1,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=1,USE_MAJORITY_POOLING=1,POOLING_MODE=separate slurm/compute_metric.slurm
+```
+
+##### KITTI 5-frame distill semantic (Tab. 7)
+mIoU: 6.49, mIoU^{sc}: 13.31 (Slight variation w.r.t. 6.48, 13.30 in the paper)
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=2,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=2,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
+```
+
+##### nuScenes surround distill semantic (Tab. 7)
+mIoU: 7.20, mIoU^{sc}: 11.51
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=3,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=3,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
+```
+
+##### KITTI 5-frame pretrained semantic (Tab. 7)
+mIoU: 8.03, mIoU^{sc}: 13.17
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=4,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=4,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
+```
+
+##### nuScenes surround pretrained semantic (Tab. 7)
+mIoU: 9.45, mIoU^{sc}: 12.22
+```bash
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=5,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=5,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
+```
+
 ## Visualization
 
 ### Point-cloud visualization with `viser`
 
-Use `vis_viser.py` to inspect the saved `pts3d_*.npy` outputs interactively:
+Use `vis_viser.py` to inspect the saved `pts3d_*.npy` point-cloud outputs interactively:
 
 ```bash
 python vis_viser.py --input_folder ./demo_data/output
@@ -309,7 +668,7 @@ Helpful notes:
 
 ## Outputs
 
-Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Typical artifacts include:
+Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Common artifacts include:
 
 - `pts3d_render.npy` for reconstruction views
 - `pts3d_render_gen.npy` for generated views when `--gen` is enabled
@@ -345,4 +704,4 @@ voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
 This project is licensed under the Apache License 2.0, see the [LICENSE](LICENSE.txt) file for details.
 
 ## Acknowledgments
-We thanks the authors of these great repositories [Dust3r](https://github.com/naver/dust3r), [Must3r](https://github.com/naver/must3r), [Depth-Anything-3](https://github.com/ByteDance-Seed/depth-anything-3), [SAM2](https://github.com/facebookresearch/sam2), [SAM3](https://github.com/facebookresearch/sam3) and [viser](https://github.com/nerfstudio-project/viser).
+We thank the authors of these excellent repositories: [Dust3r](https://github.com/naver/dust3r), [Must3r](https://github.com/naver/must3r), [Depth-Anything-3](https://github.com/ByteDance-Seed/depth-anything-3), [SAM2](https://github.com/facebookresearch/sam2), [SAM3](https://github.com/facebookresearch/sam3), and [viser](https://github.com/nerfstudio-project/viser).

@@ -16,11 +16,112 @@ from occany.utils.image_util import (
     get_SAM3_transforms,
 )
 
+from occany.semantic_inference import infer_sam2_boxes, ModelManager
+
+
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 
 
+
+def count_module_parameters(module: Optional[torch.nn.Module]) -> Tuple[int, int]:
+    """Count total and trainable parameters for one module."""
+    if module is None:
+        return 0, 0
+    total_params = sum(p.numel() for p in module.parameters())
+    trainable_params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    return total_params, trainable_params
+
+
+def count_unique_parameters(modules: List[Optional[torch.nn.Module]]) -> Tuple[int, int]:
+    """Count unique parameters across multiple modules, skipping shared tensors."""
+    total_params = 0
+    trainable_params = 0
+    seen_param_ids = set()
+    for module in modules:
+        if module is None:
+            continue
+        for param in module.parameters():
+            param_id = id(param)
+            if param_id in seen_param_ids:
+                continue
+            seen_param_ids.add(param_id)
+            total_params += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+    return total_params, trainable_params
+
+
+def get_pretrained_semantic_encoder_for_count(
+    semantic_feat_src: Optional[str],
+    semantic_family: Optional[str],
+    semantic_model_type: Optional[str],
+    device: str,
+    image_size: int,
+    sam3_resolution: int,
+    sam3_conf_th: float,
+) -> Tuple[Optional[torch.nn.Module], Optional[str]]:
+    """Load pretrained semantic encoder module used for inference parameter reporting."""
+    if semantic_feat_src != "pretrained" or semantic_family is None:
+        return None, None
+
+    try:
+        if semantic_family == "SAM2":
+            if semantic_model_type is None:
+                return None, None
+
+            model_manager = ModelManager(device)
+            sam2_model = model_manager.get_sam2(
+                semantic_model_type,
+                load_video_model=False,
+                image_size=image_size,
+            )
+
+            sam2_model_core = getattr(sam2_model, "model", None)
+            sam2_encoder = getattr(sam2_model_core, "image_encoder", None)
+            if isinstance(sam2_encoder, torch.nn.Module):
+                return sam2_encoder, semantic_model_type
+            print("[WARNING] Unable to locate SAM2 encoder module for parameter counting")
+            return None, semantic_model_type
+
+        if semantic_family == "SAM3":
+            sam3_manager = Sam3ModelManager(
+                resolution=sam3_resolution,
+                confidence_threshold=sam3_conf_th,
+            )
+            sam3_processor = sam3_manager.get_sam3(device)
+
+            sam3_model = getattr(sam3_processor, "model", None)
+            sam3_vl_backbone = getattr(sam3_model, "backbone", None)
+            sam3_vision_encoder = getattr(sam3_vl_backbone, "vision_backbone", None)
+            if isinstance(sam3_vision_encoder, torch.nn.Module):
+                return sam3_vision_encoder, "SAM3_vision_backbone"
+
+            if isinstance(sam3_vl_backbone, torch.nn.Module):
+                print(
+                    "[WARNING] SAM3 vision_backbone not found; "
+                    "falling back to full SAM3 visual-language backbone for counting"
+                )
+                return sam3_vl_backbone, "SAM3_vl_backbone"
+
+            if isinstance(sam3_model, torch.nn.Module):
+                print(
+                    "[WARNING] SAM3 backbone not found; "
+                    "falling back to full SAM3 model for counting"
+                )
+                return sam3_model, "SAM3"
+
+            print("[WARNING] Unable to locate SAM3 encoder module for parameter counting")
+            return None, "SAM3"
+
+    except Exception as exc:
+        print(
+            f"[WARNING] Failed to load pretrained {semantic_family} model for parameter counting: {exc}"
+        )
+
+    return None, semantic_model_type
+    
 def parse_semantic_mode(semantic: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """Parse semantic mode into feature source and SAM family."""
     if semantic is None:
@@ -222,7 +323,6 @@ def populate_demo_sam2_box_dicts(
     if len(recon_views) == 0:
         return {"total_boxes": 0, "views_without_boxes": []}
 
-    from occany.semantic_inference import infer_sam2_boxes
 
     total_boxes = 0
     views_without_boxes: List[int] = []

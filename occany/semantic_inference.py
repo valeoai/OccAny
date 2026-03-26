@@ -9,9 +9,49 @@ import os
 import inspect
 from pathlib import Path
 from tqdm import tqdm
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def split_distilled_sam_feats(
+    sam_feats_img_and_raymap: Optional[List[torch.Tensor]],
+    n_recon_views: int,
+) -> Tuple[Optional[List[torch.Tensor]], Optional[List[torch.Tensor]]]:
+    """Split concatenated SAM features into reconstruction and generated-view chunks."""
+    if sam_feats_img_and_raymap is None or len(sam_feats_img_and_raymap) < 3:
+        return None, None
+
+    recon_feats = [feat[:, :n_recon_views] for feat in sam_feats_img_and_raymap[:3]]
+    n_total_views = sam_feats_img_and_raymap[0].shape[1]
+    if n_total_views <= n_recon_views:
+        return recon_feats, None
+    gen_feats = [feat[:, n_recon_views:] for feat in sam_feats_img_and_raymap[:3]]
+    return recon_feats, gen_feats
+
+    
+def get_box_dict_for_view(data: Dict[str, Any], batch_idx: int, view_idx: int) -> Dict[str, Any]:
+    """Safely fetch a per-view box dictionary with empty fallback."""
+    empty_box_dict: Dict[str, Any] = {"boxes": [], "confidences": [], "labels": []}
+    box_dicts = data.get("box_dicts")
+    if box_dicts is None or batch_idx >= len(box_dicts):
+        return empty_box_dict
+
+    batch_box_dicts = box_dicts[batch_idx]
+    if batch_box_dicts is None or view_idx >= len(batch_box_dicts):
+        return empty_box_dict
+
+    box_dict = batch_box_dicts[view_idx]
+    if box_dict is None:
+        return empty_box_dict
+
+    return {
+        "boxes": box_dict.get("boxes", []),
+        "confidences": box_dict.get("confidences", []),
+        "labels": box_dict.get("labels", []),
+    }
+
+
 
 
 def _normalize_grounding_label(label: str) -> str:
@@ -255,13 +295,18 @@ def build_sam3_inference_state(
     }
 
 
-def infer_sam2_feats(sam2_model_type, sam2_imgs, device):
+def infer_sam2_feats(sam2_model_type, sam2_imgs, device, max_bs=None):
     # Initialize model manager
     model_manager = ModelManager(device)
 
     sam2_model = model_manager.get_sam2(sam2_model_type)
 
-    image_embed, feat_s1, feat_s0 = sam2_model.forward(sam2_imgs)
+    # Chunk pretrained SAM2 feature extraction over views to keep peak VRAM bounded.
+    if max_bs is None:
+        max_bs = 1 if sam2_imgs.shape[0] > 1 else 8
+    else:
+        max_bs = max(1, int(max_bs))
+    image_embed, feat_s1, feat_s0 = sam2_model.forward(sam2_imgs, max_bs=max_bs)
     high_res_feats = [feat_s0, feat_s1]
     return {"high_res_feats": high_res_feats, "image_embed": image_embed}
 
@@ -817,6 +862,7 @@ def infer_semantic(
     text_threshold=0.0,
     image_size=512,
     sam2_feats=None,
+    return_boxes=False
 ):
     assert gdino_imgs.shape[0] == 1, "Only support batch size of 1"
     assert sam2_imgs.shape[0] == 1, "Only support batch size of 1"
@@ -844,6 +890,8 @@ def infer_semantic(
         box_threshold=box_threshold,
         text_threshold=text_threshold,
     )
+    if return_boxes:
+        return None, boxes, confidences, labels
 
     # Check if there are any boxes detected
     if len(boxes) == 0:

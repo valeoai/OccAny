@@ -8,13 +8,12 @@ except Exception as _e:
 import torch
 import cv2
 from occany.utils.image_util import colorize_depth_maps, chw2hwc
+from occany.utils import cropping
 from PIL import Image
 import os
 from einops import rearrange
-import dust3r.datasets.utils.cropping as cropping
 from scipy.spatial.transform import Rotation as R, Slerp
 import torch.nn.functional as F
-from dust3r.utils.geometry import geotrf
 from typing import Optional
 from depth_anything_3.utils.geometry import (
     as_homogeneous,
@@ -1035,6 +1034,7 @@ def interpolate_se3_slerp(A, B, n):
     key_times = np.array([0.0, 1.0])
     taus = np.linspace(0.0, 1.0, n)
 
+
     Ts = np.zeros((bs, n, 4, 4), dtype=np.float64)
     Ts[:, :, 3, 3] = 1.0
 
@@ -1059,48 +1059,6 @@ def interpolate_se3_slerp(A, B, n):
     # Unbatched input: return list of 4x4 matrices for backward compatibility
     return [Ts[0, i] for i in range(1, n-1)]
 
-
-@torch.no_grad()
-def clean_pointcloud(
-    im_confs, K, cams, depthmaps, all_pts3d, tol=0.001, bad_conf=0, dbg=()
-):
-    """Method:
-    1) express all 3d points in each camera coordinate frame
-    2) if they're in front of a depthmap --> then lower their confidence
-    """
-    assert len(im_confs) == len(cams) == len(K) == len(depthmaps) == len(all_pts3d)
-    assert 0 <= tol < 1
-    res = [c.clone() for c in im_confs]
-
-    # reshape appropriately
-    all_pts3d = [p.view(*c.shape, 3) for p, c in zip(all_pts3d, im_confs)]
-    depthmaps = [d.view(*c.shape) for d, c in zip(depthmaps, im_confs)]
-
-    for i, pts3d in enumerate(all_pts3d):
-        for j in range(len(all_pts3d)):
-            if i == j:
-                continue
-
-            # project 3dpts in other view
-            proj = geotrf(cams[j], pts3d)
-            proj_depth = proj[:, :, 2]
-            u, v = geotrf(K[j], proj, norm=1, ncol=2).round().long().unbind(-1)
-
-            # check which points are actually in the visible cone
-            H, W = im_confs[j].shape
-            msk_i = (proj_depth > 0) & (0 <= u) & (u < W) & (0 <= v) & (v < H)
-            msk_j = v[msk_i], u[msk_i]
-
-            # find bad points = those in front but less confident
-            bad_points = (proj_depth[msk_i] < (1 - tol) * depthmaps[j][msk_j]) & (
-                res[i][msk_i] < res[j][msk_j]
-            )
-
-            bad_msk_i = msk_i.clone()
-            bad_msk_i[msk_i] = bad_points
-            res[i][bad_msk_i] = res[i][bad_msk_i].clip_(max=bad_conf)
-
-    return res
 
 
 def generate_novel_straight_rotated_poses(camera_poses, views_per_interval, 

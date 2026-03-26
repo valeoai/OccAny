@@ -168,25 +168,44 @@ class SAM2(nn.Module):
             len(input_image.shape) == 4 and input_image.shape[1] == 3
         ), f"input_image must be of size 1x3xHxW, got {input_image.shape}"
         logging.info("Computing image embeddings for the provided image...")
+        bs = input_image.shape[0]
+
+        if max_bs is None or max_bs <= 0 or bs <= max_bs:
+            return self._forward_impl(input_image)
+
+        image_embeds = []
+        feat_s1_list = []
+        feat_s0_list = []
+        for start in range(0, bs, max_bs):
+            chunk = input_image[start:start + max_bs]
+            image_embed, feat_s1, feat_s0 = self._forward_impl(chunk)
+            image_embeds.append(image_embed)
+            feat_s1_list.append(feat_s1)
+            feat_s0_list.append(feat_s0)
+
+        return (
+            torch.cat(image_embeds, dim=0),
+            torch.cat(feat_s1_list, dim=0),
+            torch.cat(feat_s0_list, dim=0),
+        )
+
+    def _forward_impl(self, input_image):
         backbone_out = self.model.forward_image(input_image)
-        
+
         _, vision_feats, _, _ = self.model._prepare_backbone_features(backbone_out)
         # Add no_mem_embed, which is added to the lowest rest feat. map during training on videos
         if self.model.directly_add_no_mem_embed:
             vision_feats[-1] = vision_feats[-1] + self.model.no_mem_embed
         bs = input_image.shape[0]
 
-     
         feats = [
             feat.permute(1, 2, 0).view(bs, -1, *feat_size)
             for feat, feat_size in zip(vision_feats[::-1], self.image_predictor._bb_feat_sizes[::-1])
         ][::-1]
-        # features = {"image_embed": feats[-1], "high_res_feats": feats[:-1]}
         image_embed = feats[-1]
         feat_s1 = feats[-2]
         feat_s0 = feats[-3]
-       
-        
+
         return image_embed, feat_s1, feat_s0
 
 

@@ -17,6 +17,7 @@ pyrightconfig.json
 results
 checkpoints
 
+output/*
 slurm/output/*
 slurm/backup_output/*
 slurm/data_process_output/*
