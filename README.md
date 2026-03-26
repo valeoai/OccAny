@@ -59,13 +59,11 @@ If you find this work or code useful, please cite the paper and consider starrin
 - [4. Installation](#4-installation)
 - [5. Checkpoints](#5-checkpoints)
 - [6. Quick start](#6-quick-start)
-- [6.1 Inference recipes](#61-inference-recipes)
 - [7. Key inference flags](#7-key-inference-flags)
-- [8. Evaluation](#8-evaluation)
-- [9. Visualization](#9-visualization)
-- [10. Outputs](#10-outputs)
-- [11. License](#11-license)
-- [12. Acknowledgments](#12-acknowledgments)
+- [8. Visualization](#8-visualization)
+- [9. Evaluation](#9-evaluation)
+- [10. License](#10-license)
+- [11. Acknowledgments](#11-acknowledgments)
 
 ## 3. Roadmap
 
@@ -258,6 +256,39 @@ python inference.py \
   --model occany_must3r
 ```
 
+
+Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Common artifacts include:
+
+- `pts3d_render.npy` for reconstruction views
+- `pts3d_render_gen.npy` for generated views when `--gen` is enabled
+- `pts3d_render_recon_gen.npy` for the merged point-cloud output
+- `voxel_predictions.pkl` for voxelized predictions and visualization metadata
+
+`inference.py` currently uses an urban voxel grid tuned for the included demo scenes:
+
+- `voxel_size = 0.4`
+- `occ_size = [200, 200, 24]`
+- `voxel_origin = [-40.0, -40.0, -3.6]`
+
+If you need a different dataset convention or voxel layout, update these values in `inference.py` before running inference. Two common presets are:
+
+**KITTI**
+
+```python
+voxel_size = 0.2
+occ_size = [256, 256, 32]
+voxel_origin = np.array([0.0, -25.6, -2.0], dtype=np.float32)
+```
+
+**nuScenes**
+
+```python
+voxel_size = 0.4
+occ_size = [200, 200, 16]
+voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
+```
+
+
 ## 7. Key inference flags
 
 The most commonly adjusted flags fall into three groups: common flags, semantic flags, and generation-specific flags. If you only want reconstruction output, omit `--gen` and any flag whose scope below is `Generation` or `Generation + semantic`.
@@ -291,12 +322,49 @@ The most commonly adjusted flags fall into three groups: common flags, semantic 
 </details>
 
 
-## 8. Evaluation
+
+
+## 8. Visualization
+
+### 8.1 Point-cloud visualization with `viser`
+
+Use `vis_viser.py` to inspect the saved `pts3d_*.npy` point-cloud outputs interactively:
+
+```bash
+python vis_viser.py --input_folder ./demo_data/output
+```
+
+You can point `--input_folder` either to the output root or directly to a single scene folder. In the viewer, the common dropdown options are:
+
+- `render` for reconstruction output
+- `render_gen` for generated-view output
+- `render_recon_gen` for the combined output
+
+### 8.2 Voxel visualization with `mayavi`
+
+`vis_voxel.py` renders voxel predictions to image files. Install `mayavi` separately if you want to use this path:
+
+```bash
+pip install mayavi
+python vis_voxel.py --input_root ./demo_data/output --dataset nuscenes
+```
+
+Helpful notes:
+
+- The script writes rendered images to `./output` by default
+- If the requested `--prediction_key` is missing, it automatically falls back to the best available `render*` grid
+- Use `--dataset kitti` for KITTI-style scenes and `--dataset nuscenes` for nuScenes-style surround-view scenes
+- Add `--save_input_images` if you also want stacked input RGB images next to the voxel render
+
+
+
+
+## 9. Evaluation
 
 This section covers the end-to-end evaluation workflow for KITTI and nuScenes using the provided shell and SLURM wrappers.
 
 
-### 8.1 Download evaluation datasets
+### 9.1 Download evaluation datasets
 #### KITTI
 
 Download the following assets:
@@ -353,7 +421,7 @@ $PROJECT/data/nuscenes/
 ```
 
 
-### 8.2 Prepare output and dataset roots
+### 9.2 Prepare output and dataset roots
 
 1. Set `PROJECT` and `SCRATCH`, then create the evaluation directories:
 
@@ -409,10 +477,10 @@ $PROJECT/data/nuscenes/
 
 
 
-### 8.3 Local shell workflow
+### 9.3 Local shell workflow
 
 > [!CAUTION] 
-> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [8.4 SLURM](#84-slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
+> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [9.4 SLURM](#94-slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
 
 > [!NOTE]
 > To maximize performance, some presets sample novel-view densely and therefore generate roughly 150 to 180 views. You can reduce runtime by lowering `-vpi` (the number of generated views per reconstruction view). In general, the total number of novel views is `n_recon x args.vpi x (3 if args.rot > 0 else 1)`.
@@ -534,7 +602,7 @@ USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=5
 ```
 
 
-### 8.4 SLURM
+### 9.4 SLURM
 
 Some extraction presets can generate up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script therefore runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`). 
 
@@ -630,74 +698,10 @@ mIoU: 9.45, mIoU^{sc}: 12.22
 sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=5,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=5,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
 ```
 
-## 9. Visualization
 
-### 9.1 Point-cloud visualization with `viser`
-
-Use `vis_viser.py` to inspect the saved `pts3d_*.npy` point-cloud outputs interactively:
-
-```bash
-python vis_viser.py --input_folder ./demo_data/output
-```
-
-You can point `--input_folder` either to the output root or directly to a single scene folder. In the viewer, the common dropdown options are:
-
-- `render` for reconstruction output
-- `render_gen` for generated-view output
-- `render_recon_gen` for the combined output
-
-### 9.2 Voxel visualization with `mayavi`
-
-`vis_voxel.py` renders voxel predictions to image files. Install `mayavi` separately if you want to use this path:
-
-```bash
-pip install mayavi
-python vis_voxel.py --input_root ./demo_data/output --dataset nuscenes
-```
-
-Helpful notes:
-
-- The script writes rendered images to `./output` by default
-- If the requested `--prediction_key` is missing, it automatically falls back to the best available `render*` grid
-- Use `--dataset kitti` for KITTI-style scenes and `--dataset nuscenes` for nuScenes-style surround-view scenes
-- Add `--save_input_images` if you also want stacked input RGB images next to the voxel render
-
-## 10. Outputs
-
-Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Common artifacts include:
-
-- `pts3d_render.npy` for reconstruction views
-- `pts3d_render_gen.npy` for generated views when `--gen` is enabled
-- `pts3d_render_recon_gen.npy` for the merged point-cloud output
-- `voxel_predictions.pkl` for voxelized predictions and visualization metadata
-
-`inference.py` currently uses an urban voxel grid tuned for the included demo scenes:
-
-- `voxel_size = 0.4`
-- `occ_size = [200, 200, 24]`
-- `voxel_origin = [-40.0, -40.0, -3.6]`
-
-If you need a different dataset convention or voxel layout, update these values in `inference.py` before running inference. Two common presets are:
-
-**KITTI**
-
-```python
-voxel_size = 0.2
-occ_size = [256, 256, 32]
-voxel_origin = np.array([0.0, -25.6, -2.0], dtype=np.float32)
-```
-
-**nuScenes**
-
-```python
-voxel_size = 0.4
-occ_size = [200, 200, 16]
-voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
-```
-
-## 11. License
+## 10. License
 
 This project is licensed under the Apache License 2.0, see the [LICENSE](LICENSE.txt) file for details.
 
-## 12. Acknowledgments
+## 11. Acknowledgments
 We thank the authors of these excellent repositories: [Dust3r](https://github.com/naver/dust3r), [Must3r](https://github.com/naver/must3r), [Depth-Anything-3](https://github.com/ByteDance-Seed/depth-anything-3), [SAM2](https://github.com/facebookresearch/sam2), [SAM3](https://github.com/facebookresearch/sam3), and [viser](https://github.com/nerfstudio-project/viser).
