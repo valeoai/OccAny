@@ -40,7 +40,7 @@ OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluati
 
 The repository also includes sample RGB scenes in `demo_data/input`, pretrained weights in `checkpoints/`, and viewers for both point-cloud and voxel-grid outputs.
 
-## Citation
+## 1. Citation
 
 If you find this work or code useful, please cite the paper and consider starring the repository:
 
@@ -53,21 +53,21 @@ If you find this work or code useful, please cite the paper and consider starrin
 }
 ```
 
-## Table of contents
+## 2. Table of contents
 
-- [Roadmap](#roadmap)
-- [Installation](#installation)
-- [Checkpoints](#checkpoints)
-- [Quick start](#quick-start)
-- [Inference recipes](#inference-recipes)
-- [Key inference flags](#key-inference-flags)
-- [Evaluation](#evaluation)
-- [Visualization](#visualization)
-- [Outputs](#outputs)
-- [License](#license)
-- [Acknowledgments](#acknowledgments)
+- [3. Roadmap](#3-roadmap)
+- [4. Installation](#4-installation)
+- [5. Checkpoints](#5-checkpoints)
+- [6. Quick start](#6-quick-start)
+- [6.1 Inference recipes](#61-inference-recipes)
+- [7. Key inference flags](#7-key-inference-flags)
+- [8. Evaluation](#8-evaluation)
+- [9. Visualization](#9-visualization)
+- [10. Outputs](#10-outputs)
+- [11. License](#11-license)
+- [12. Acknowledgments](#12-acknowledgments)
 
-## Roadmap
+## 3. Roadmap
 
 - [x] Inference code for OccAny (Must3R + SAM2) and OccAny+ (DA3 + SAM3)
 - [x] Pretrained checkpoints
@@ -75,18 +75,18 @@ If you find this work or code useful, please cite the paper and consider starrin
 - [ ] Dataset preparation scripts for Waymo, PandaSet, DDAD, VKitti, ONCE
 - [ ] Training code for OccAny (Must3R + SAM2) and OccAny+ (DA3 + SAM3)
 
-## Installation
+## 4. Installation
 
 The commands below create the environment used for the public release and keep all required third-party dependencies local to this repository.
 
-### 1. Clone the repository
+### 4.1 Clone the repository
 
 ```bash
 git clone https://github.com/valeoai/OccAny.git
 cd OccAny
 ```
 
-### 2. Create a Python environment
+### 4.2 Create a Python environment
 
 ```bash
 conda create -n occany python=3.12 -y
@@ -94,7 +94,7 @@ conda activate occany
 python -m pip install --upgrade pip setuptools wheel ninja
 ```
 
-### 3. Install PyTorch and CUDA
+### 4.3 Install PyTorch and CUDA
 
 ```bash
 conda install -c nvidia cuda-toolkit=12.6
@@ -102,13 +102,13 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https
 pip install xformers==0.0.29.post2
 ```
 
-### 4. Install shared Python dependencies
+### 4.4 Install shared Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 5. Install `torch-scatter`
+### 4.5 Install `torch-scatter`
 
 ```bash
 export CUDA_HOME=$CONDA_PREFIX
@@ -117,7 +117,7 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 pip install torch-scatter --no-cache-dir --no-build-isolation
 ```
 
-### 6. Use the vendored third-party code
+### 4.6 Use the vendored third-party code
 
 OccAny relies on the vendored copies bundled in `third_party/`:
 
@@ -135,7 +135,7 @@ export PYTHONPATH="$PWD/third_party:$PWD/third_party/dust3r:$PWD/third_party/cro
 
 Avoid adding `third_party/sam2` on top of this unless you explicitly need the standalone SAM2 copy, because it exposes the same top-level module name as `third_party/Grounded-SAM-2`.
 
-### 7. Compile CroCo's `curope` extension (recommended)
+### 4.7 Compile CroCo's `curope` extension (recommended)
 
 ```bash
 export CUDA_HOME=$CONDA_PREFIX
@@ -151,7 +151,7 @@ This builds a `curope*.so` file next to the sources. The `PYTHONPATH` export abo
 
 The vendored `third_party/croco/models/curope/setup.py` currently targets SM 70, 80, and 90. If your GPU uses a different compute capability, update `all_cuda_archs` there before rebuilding.
 
-### 8. Optional sanity check
+### 4.8 Optional sanity check
 
 ```bash
 python - <<'PY'
@@ -187,7 +187,7 @@ print("third-party imports: ok")
 PY
 ```
 
-## Checkpoints
+## 5. Checkpoints
 
 Model checkpoints are hosted on Hugging Face:
 
@@ -208,7 +208,7 @@ Expected files under `checkpoints/`:
 - `groundingdino_swinb_cogcoor.pth`
 - `sam2.1_hiera_large.pt`
 
-## Quick start
+## 6. Quick start
 
 After installation and checkpoint download, you can run the demo commands below from the repo root as-is. By default:
 
@@ -216,7 +216,7 @@ After installation and checkpoint download, you can run the demo commands below 
 - Outputs are written to `./demo_data/output`
 - The repo already includes sample scenes such as `kitti_08_1390` and `nuscenes_scenes-0039`
 
-### Inference recipes
+### 6.1 Inference recipes
 
 The following presets reproduce the default demo pipeline for each released model variant.
 
@@ -258,7 +258,7 @@ python inference.py \
   --model occany_must3r
 ```
 
-## Key inference flags
+## 7. Key inference flags
 
 The most commonly adjusted flags fall into three groups: common flags, semantic flags, and generation-specific flags. If you only want reconstruction output, omit `--gen` and any flag whose scope below is `Generation` or `Generation + semantic`.
 
@@ -291,12 +291,12 @@ The most commonly adjusted flags fall into three groups: common flags, semantic 
 </details>
 
 
-## Evaluation
+## 8. Evaluation
 
 This section covers the end-to-end evaluation workflow for KITTI and nuScenes using the provided shell and SLURM wrappers.
 
 
-### Download evaluation datasets
+### 8.1 Download evaluation datasets
 #### KITTI
 
 Download the following assets:
@@ -353,60 +353,54 @@ $PROJECT/data/nuscenes/
 ```
 
 
-### Prepare output and dataset roots
+### 8.2 Prepare output and dataset roots
 
-Set the repo root as `PROJECT`, choose an evaluation scratch/output root, and create the directories used for cached preprocessing outputs, voxel predictions, and visualization dumps:
+1. Set `PROJECT` and `SCRATCH`, then create the evaluation directories:
 
-```bash
-export PROJECT=$PWD
-export SCRATCH=$PWD/eval_output
-mkdir -p \
-  "$SCRATCH/ssc_voxel_pred" \
-  "$SCRATCH/ssc_output" \
-  "$SCRATCH/data/kitti_processed" \
-  "$SCRATCH/data/nuscenes_processed"
-```
+   ```bash
+   export PROJECT=$PWD
+   export SCRATCH=$PWD/eval_output
+   mkdir -p \
+     "$SCRATCH/ssc_voxel_pred" \
+     "$SCRATCH/ssc_output" \
+     "$SCRATCH/data/kitti_processed" \
+     "$SCRATCH/data/nuscenes_processed"
+   ```
 
-By default, the shell wrappers look for raw datasets under `$PROJECT/data/kitti` and `$PROJECT/data/nuscenes`. If your datasets live elsewhere, override the roots before running the preset commands:
+2. If your datasets are not under `$PROJECT/data/kitti` and `$PROJECT/data/nuscenes`, override the roots:
 
-```bash
-export KITTI_ROOT=/path/to/kitti
-export NUSCENES_ROOT=/path/to/occ3d_nuscenes
-```
+   ```bash
+   export KITTI_ROOT=/path/to/kitti
+   export NUSCENES_ROOT=/path/to/occ3d_nuscenes
+   ```
 
-Before running the box extraction scripts or the evaluation pipeline, make sure the vendored Grounded-SAM-2 / GroundingDINO deformable-attention extension is built:
+3. Build the vendored Grounded-SAM-2 / GroundingDINO extension:
 
-```bash
-pip install -e third_party/Grounded-SAM-2
-# REQUIRE GCC > 9
-pip install --no-build-isolation -e third_party/Grounded-SAM-2/grounding_dino
-```
+   ```bash
+   pip install -e third_party/Grounded-SAM-2
+   # REQUIRE GCC > 9
+   pip install --no-build-isolation -e third_party/Grounded-SAM-2/grounding_dino
+   ```
 
-The second command builds the GroundingDINO deformable-attention extension (`groundingdino/_C`). If you see errors such as `NameError: name '_C' is not defined` inside `ms_deform_attn.py`, rerun this install step in your `occany` environment.
+   If `groundingdino/_C` fails to load (for example, `NameError: name '_C' is not defined` in `ms_deform_attn.py`), rerun this step in your `occany` environment.
 
-Before evaluation, pre-extract the GroundingDINO detection boxes once so later evaluation runs can reuse the cached detections instead of recomputing them every time:
+4. Pre-extract the GroundingDINO boxes once:
 
-```bash
-python extract_gdino_boxes_kitti.py --image_size 1216 --box_threshold 0.05 --text_threshold 0.05
-python extract_gdino_boxes_nuscenes.py --image_size 1328 --box_threshold 0.05 --text_threshold 0.05
-```
+   ```bash
+   python extract_gdino_boxes_kitti.py --image_size 1216 --box_threshold 0.05 --text_threshold 0.05
+   python extract_gdino_boxes_nuscenes.py --image_size 1328 --box_threshold 0.05 --text_threshold 0.05
+   ```
 
-These commands write cached boxes as `boxes.npz` files under:
+   Cached boxes are written to:
 
-```text
-$SCRATCH/data/kitti_processed/resized_1216_box5_text5_DINOB/<sequence>_<frame_id>/boxes.npz
-$SCRATCH/data/nuscenes_processed/resized_1328_box5_text5_DINOB/<scene_name>/<frame_token>_<camera_name>/boxes.npz
-```
+   ```text
+   $SCRATCH/data/kitti_processed/resized_1216_box5_text5_DINOB/<sequence>_<frame_id>/boxes.npz
+   $SCRATCH/data/nuscenes_processed/resized_1328_box5_text5_DINOB/<scene_name>/<frame_token>_<camera_name>/boxes.npz
+   ```
 
-The cache folder name follows this pattern:
+   `sh/eval_occany.sh` already uses these cache folders, so later evaluation runs can reuse the detections.
 
-```text
-resized_${image_size}_box${int(box_threshold*100)}_text${int(text_threshold*100)}_DINOB
-```
 
-This is part of the evaluation pipeline: the maintained `sh/eval_occany.sh` presets pass `--boxes_folder resized_1216_box5_text5_DINOB` for KITTI and `--boxes_folder resized_1328_box5_text5_DINOB` for nuScenes, so `extract_output_occany.py` reuses these cached detections during voxel extraction. Running box extraction once up front usually makes later evaluation runs much faster.
-
-For KITTI, use a single `KITTI_ROOT` that contains both the SemanticKITTI voxel labels and the KITTI odometry RGB images in the same tree (as shown above). Step 2 (`compute_metrics_from_saved_voxels.py`) only needs `KITTI_ROOT` for KITTI or `NUSCENES_ROOT` for NuScenes.
 
 `sh/eval_occany.sh` writes voxel predictions under `$SCRATCH/ssc_voxel_pred/<preset-output-dir>/...` and sampled visualization artifacts under `$SCRATCH/ssc_output/<preset-output-dir>/...`.
 
@@ -415,13 +409,13 @@ For KITTI, use a single `KITTI_ROOT` that contains both the SemanticKITTI voxel 
 
 
 
-### Local shell workflow
+### 8.3 Local shell workflow
 
 > [!CAUTION] 
-> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [SLURM](#slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
+> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [8.4 SLURM](#84-slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
 
 > [!NOTE]
-> To maximize performance, some presets use dense novel-view sampling and therefore generate roughly 150 to 180 views. You can reduce runtime by lowering `-vpi` (the number of generated views per reconstruction view). In general, the total number of novel views is `n_recon x args.vpi x (3 if args.rot > 0 else 1)`.
+> To maximize performance, some presets sample novel-view densely and therefore generate roughly 150 to 180 views. You can reduce runtime by lowering `-vpi` (the number of generated views per reconstruction view). In general, the total number of novel views is `n_recon x args.vpi x (3 if args.rot > 0 else 1)`.
 
 Evaluation is a two-step workflow:
 
@@ -540,9 +534,11 @@ USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=5
 ```
 
 
-### SLURM
+### 8.4 SLURM
 
-Some extraction presets can generate up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script therefore runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`). Each example below submits the extraction job first and then chains the metric job with `--dependency=afterany:$(...)`, so the metric job waits until the full extraction array finishes. The public SLURM wrappers keep the Karolina-HPC defaults (`-A eu-25-92`, `--partition=qgpu`, `--hint=nomultithread`, `--cpus-per-task=16`, and `conda activate occany`); update those settings to match your cluster.
+Some extraction presets can generate up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script therefore runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`). 
+
+Each example below submits the extraction job first and then chains the metric job with `--dependency=afterany:$(...)`, so the metric job waits until the full extraction array finishes. The public SLURM wrappers keep the Karolina-HPC defaults (`-A eu-25-92`, `--partition=qgpu`, `--hint=nomultithread`, `--cpus-per-task=16`, and `conda activate occany`); update those settings to match your cluster.
 
 #### OccAny
 
@@ -634,9 +630,9 @@ mIoU: 9.45, mIoU^{sc}: 12.22
 sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=5,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=5,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
 ```
 
-## Visualization
+## 9. Visualization
 
-### Point-cloud visualization with `viser`
+### 9.1 Point-cloud visualization with `viser`
 
 Use `vis_viser.py` to inspect the saved `pts3d_*.npy` point-cloud outputs interactively:
 
@@ -650,7 +646,7 @@ You can point `--input_folder` either to the output root or directly to a single
 - `render_gen` for generated-view output
 - `render_recon_gen` for the combined output
 
-### Voxel visualization with `mayavi`
+### 9.2 Voxel visualization with `mayavi`
 
 `vis_voxel.py` renders voxel predictions to image files. Install `mayavi` separately if you want to use this path:
 
@@ -666,7 +662,7 @@ Helpful notes:
 - Use `--dataset kitti` for KITTI-style scenes and `--dataset nuscenes` for nuScenes-style surround-view scenes
 - Add `--save_input_images` if you also want stacked input RGB images next to the voxel render
 
-## Outputs
+## 10. Outputs
 
 Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Common artifacts include:
 
@@ -699,9 +695,9 @@ occ_size = [200, 200, 16]
 voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
 ```
 
-## License
+## 11. License
 
 This project is licensed under the Apache License 2.0, see the [LICENSE](LICENSE.txt) file for details.
 
-## Acknowledgments
+## 12. Acknowledgments
 We thank the authors of these excellent repositories: [Dust3r](https://github.com/naver/dust3r), [Must3r](https://github.com/naver/must3r), [Depth-Anything-3](https://github.com/ByteDance-Seed/depth-anything-3), [SAM2](https://github.com/facebookresearch/sam2), [SAM3](https://github.com/facebookresearch/sam3), and [viser](https://github.com/nerfstudio-project/viser).
