@@ -77,14 +77,14 @@ If you find this work or code useful, please cite the paper and consider starrin
 
 The commands below create the environment used for the public release and keep all required third-party dependencies local to this repository.
 
-### 4.1 Clone the repository
+1. Clone the repository
 
 ```bash
 git clone https://github.com/valeoai/OccAny.git
 cd OccAny
 ```
 
-### 4.2 Create a Python environment
+2. Create a Python environment
 
 ```bash
 conda create -n occany python=3.12 -y
@@ -92,7 +92,7 @@ conda activate occany
 python -m pip install --upgrade pip setuptools wheel ninja
 ```
 
-### 4.3 Install PyTorch and CUDA
+3. Install PyTorch and CUDA
 
 ```bash
 conda install -c nvidia cuda-toolkit=12.6
@@ -100,13 +100,13 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https
 pip install xformers==0.0.29.post2
 ```
 
-### 4.4 Install shared Python dependencies
+4. Install shared Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4.5 Install `torch-scatter`
+5. Install `torch-scatter`
 
 ```bash
 export CUDA_HOME=$CONDA_PREFIX
@@ -115,7 +115,7 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 pip install torch-scatter --no-cache-dir --no-build-isolation
 ```
 
-### 4.6 Use the vendored third-party code
+6. Use the vendored third-party code
 
 OccAny relies on the vendored copies bundled in `third_party/`:
 
@@ -133,7 +133,7 @@ export PYTHONPATH="$PWD/third_party:$PWD/third_party/dust3r:$PWD/third_party/cro
 
 Avoid adding `third_party/sam2` on top of this unless you explicitly need the standalone SAM2 copy, because it exposes the same top-level module name as `third_party/Grounded-SAM-2`.
 
-### 4.7 Compile CroCo's `curope` extension (recommended)
+7. Compile CroCo's `curope` extension (recommended)
 
 ```bash
 export CUDA_HOME=$CONDA_PREFIX
@@ -149,7 +149,7 @@ This builds a `curope*.so` file next to the sources. The `PYTHONPATH` export abo
 
 The vendored `third_party/croco/models/curope/setup.py` currently targets SM 70, 80, and 90. If your GPU uses a different compute capability, update `all_cuda_archs` there before rebuilding.
 
-### 4.8 Optional sanity check
+8. Optional sanity check
 
 ```bash
 python - <<'PY'
