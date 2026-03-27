@@ -4,7 +4,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OccAny: Generalized Unconstrained Urban 3D Occupancy</title>
+    <meta name="description"
+        content="OccAny: The first generalized model for metric 3D occupancy from unconstrained scenes. Leveraging foundation models like Depth-Anything-3 and SAM3 (Segment Anything Model 3) for enhanced 3D geometry. CVPR 2026.">
+    <meta name="keywords"
+        content="OccAny, 3D Occupancy Prediction, Generalized Visual Geometry, Depth-Anything-3, SAM3, Segment Anything Model 3, Foundation Models for CV, Metric Occupancy, Segmentation Forcing, Novel View Rendering, Geometry Completion, Out-of-Domain Generalization, Uncalibrated Scenes, Test-Time View Augmentation, Computer Vision, CVPR 2026, Valeo.ai">
+    <meta name="author" content="Anh-Quan Cao, Tuan-Hung Vu">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://valeoai.github.io/OccAny/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://valeoai.github.io/OccAny/">
+    <meta property="og:title" content="OccAny: Generalized Unconstrained Urban 3D Occupancy">
+    <meta property="og:description"
+        content="The first generalized model for metric 3D occupancy leveraging Depth-Anything-3 and SAM3. CVPR 2026.">
+    <meta property="og:image" content="https://valeoai.github.io/OccAny/images/occany_recon_web.png">
+    <meta property="og:video" content="https://valeoai.github.io/OccAny/videos/teaser_occany.mp4">
+    <meta property="og:video:secure_url" content="https://valeoai.github.io/OccAny/videos/teaser_occany.mp4">
+    <meta property="og:video:type" content="video/mp4">
+    <meta property="og:video:width" content="1280">
+    <meta property="og:video:height" content="720">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://valeoai.github.io/OccAny/">
+    <meta property="twitter:title" content="OccAny: Generalized Unconstrained Urban 3D Occupancy">
+    <meta property="twitter:description"
+        content="The first generalized model for metric 3D occupancy leveraging Depth-Anything-3 and SAM3. CVPR 2026.">
+    <meta property="twitter:image" content="https://valeoai.github.io/OccAny/images/occany_recon_web.png">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ScholarlyArticle",
+      "headline": "OccAny: Generalized Unconstrained Urban 3D Occupancy",
+      "image": "https://valeoai.github.io/OccAny/images/occany_recon_web.png",
+      "video": {
+        "@type": "VideoObject",
+        "name": "OccAny: Generalized Unconstrained Urban 3D Occupancy Teaser",
+        "description": "OccAny is the first generalized model for metric 3D occupancy from unconstrained, out-of-domain, and uncalibrated urban scenes, leveraging Depth-Anything-3 and SAM3.",
+        "thumbnailUrl": "https://valeoai.github.io/OccAny/images/occany_recon_web.png",
+        "contentUrl": "https://valeoai.github.io/OccAny/videos/teaser_occany.mp4",
+        "uploadDate": "2026-03-01"
+      },
+      "author": [
+        {
+          "@type": "Person",
+          "name": "Anh-Quan Cao",
+          "url": "https://anhquancao.github.io/"
+        },
+        {
+          "@type": "Person",
+          "name": "Tuan-Hung Vu",
+          "url": "https://tuanhungvu.github.io/"
+        }
+      ],
+      "publisher": {
+        "@type": "Organization",
+        "name": "Valeo.ai",
+        "url": "https://valeoai.github.io/"
+      },
+      "datePublished": "2026-03-01",
+      "description": "OccAny is the first generalized model for metric 3D occupancy from unconstrained, out-of-domain, and uncalibrated urban scenes. It supports various input configurations, including sequential, monocular, or surround-view images, using 'Segmentation Forcing' (inspired by SAM3) and 'Novel View Rendering' for enhanced quality, building upon foundation models like Depth-Anything-3.",
+      "keywords": "3D Occupancy Prediction, Generalized Visual Geometry, Unconstrained Urban Scenes, Metric Occupancy, Segmentation Forcing, Novel View Rendering, Geometry Completion, Out-of-Domain Generalization, Uncalibrated Scenes, Test-Time View Augmentation, Depth-Anything-3, SAM3, Segment Anything Model 3",
+      "conference": "Conference on Computer Vision and Pattern Recognition (CVPR) 2026"
+    }
+    </script>
+
     <link rel="icon" type="image/jpeg" href="images/logo.jpg">
     <!-- Model Viewer for 3D visualization -->
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
@@ -32,8 +100,8 @@
 
 
             <div class="authors">
-                <a href="https://anhquancao.github.io/" target="_blank">Anh-Quan Cao</a>, <a
-                    href="https://tuanhungvu.github.io/" target="_blank">Tuan-Hung Vu</a>
+                <a href="https://anhquancao.github.io/" target="_blank" rel="noopener noreferrer">Anh-Quan Cao</a>, <a
+                    href="https://tuanhungvu.github.io/" target="_blank" rel="noopener noreferrer">Tuan-Hung Vu</a>
             </div>
 
             <div class="affiliations">
@@ -48,11 +116,11 @@
 
             <div class="buttons">
                 <a href="http://arxiv.org/abs/2603.23502" class="btn" target="_blank"
-                    rel="noopener noreferrer">Paper</a>
+                    rel="noopener noreferrer" aria-label="Read the OccAny paper on ArXiv">Paper</a>
                 <a href="https://github.com/valeoai/OccAny" class="btn" target="_blank"
-                    rel="noopener noreferrer">Code</a>
+                    rel="noopener noreferrer" aria-label="View OccAny source code on GitHub">Code</a>
                 <a href="https://huggingface.co/anhquancao/OccAny/tree/main/checkpoints" class="btn" target="_blank"
-                    rel="noopener noreferrer">Model Checkpoint</a>
+                    rel="noopener noreferrer" aria-label="Download OccAny model checkpoints from Hugging Face">Model Checkpoint</a>
             </div>
         </header>
 
@@ -70,37 +138,37 @@
 
                     <div class="teaser-video-grid">
                         <div class="video-tag-container">
-                            <video class="teaser-video" autoplay loop muted playsinline>
+                            <video class="teaser-video" autoplay loop muted playsinline aria-label="OccAny performance on Kitti Sequence">
                                 <source src="videos/08_5frames.mp4" type="video/mp4">
                             </video>
                             <span class="video-tag">Kitti Sequence</span>
                         </div>
                         <div class="video-tag-container">
-                            <video class="teaser-video" autoplay loop muted playsinline>
+                            <video class="teaser-video" autoplay loop muted playsinline aria-label="OccAny performance on Nuscenes dataset">
                                 <source src="videos/nuscenes.mp4" type="video/mp4">
                             </video>
                             <span class="video-tag">Nuscenes</span>
                         </div>
                         <div class="video-tag-container">
-                            <video class="teaser-video" autoplay loop muted playsinline>
+                            <video class="teaser-video" autoplay loop muted playsinline aria-label="OccAny performance on Kitti Monocular">
                                 <source src="videos/08_1frame.mp4" type="video/mp4">
                             </video>
                             <span class="video-tag">Kitti Monocular</span>
                         </div>
                         <div class="video-tag-container">
-                            <video class="teaser-video" autoplay loop muted playsinline>
+                            <video class="teaser-video" autoplay loop muted playsinline aria-label="OccAny performance on Waymo dataset">
                                 <source src="videos/waymo.mp4" type="video/mp4">
                             </video>
                             <span class="video-tag">Waymo</span>
                         </div>
                         <div class="video-tag-container">
-                            <video class="teaser-video" autoplay loop muted playsinline>
+                            <video class="teaser-video" autoplay loop muted playsinline aria-label="OccAny performance on DDAD dataset">
                                 <source src="videos/ddad.mp4" type="video/mp4">
                             </video>
                             <span class="video-tag">DDAD</span>
                         </div>
                         <div class="video-tag-container">
-                            <video class="teaser-video" autoplay loop muted playsinline>
+                            <video class="teaser-video" autoplay loop muted playsinline aria-label="OccAny performance on PandaSet dataset">
                                 <source src="videos/pandaset.mp4" type="video/mp4">
                             </video>
                             <span class="video-tag">PandaSet</span>
