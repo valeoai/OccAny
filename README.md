@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/a3abde5b-c170-4b5d-818c-262b0df2546f
 
 ---
 
-OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluation utilities, training dataset preparation and training entrypoint scripts, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This public release includes two model variants:
+OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluation utilities, training dataset preparation and training scripts, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This public release includes two model variants:
 
 - **OccAny**, based on Must3R + SAM2
 - **OccAny+**, based on Depth Anything 3 + SAM3
