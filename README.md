@@ -509,7 +509,7 @@ Each example below submits the extraction job first and then chains the metric j
 ```bash
 sbatch --dependency=afterany:$(sbatch --parsable \
     --export=EXP_LIST=<exp_list>,EXP_ID=<id>,WORLD=20 slurm/eval_occany.slurm) \
-  --export=EXP_LIST=<metric_exp_list>,EXP_ID=<id>,USE_MAJORITY_POOLING=1,POOLING_MODE=<mode> \
+    --export=EXP_LIST=<metric_exp_list>,EXP_ID=<id>,USE_MAJORITY_POOLING=1,POOLING_MODE=<mode> \
   slurm/compute_metric.slurm
 ```
 
