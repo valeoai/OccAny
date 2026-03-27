@@ -8,7 +8,7 @@ from dust3r.utils.geometry import depthmap_to_pts3d, geotrf
 from dust3r.viz import SceneViz, auto_cam_size
 from dust3r.utils.image import rgb
 import os
-from occany.occany.datasets.class_mapping import ClassMapping
+from occany.datasets.class_mapping import ClassMapping
 
 
 def _interleave_imgs(img1, img2):

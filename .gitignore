@@ -159,3 +159,7 @@ third_party/sam3/assets
 *.pth
 *.pt
 *.bin
+
+# Log files from third-party inference runs
+*.out
+*.err

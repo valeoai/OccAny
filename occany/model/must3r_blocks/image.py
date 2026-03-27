@@ -11,7 +11,6 @@ def unpatchify(x, patch_size, true_shape):
     H, W = true_shape
     # x.view(B,  H // patch_size, W // patch_size, -1,)
     x = x.transpose(-1, -2).view(B, -1, H // patch_size, W // patch_size)
-    # x = x.transpose(-1, -2).reshape(B, -1, H // patch_size, W // patch_size)
     x = F.pixel_shuffle(x, patch_size)  # B,channels,H,W
     return x
 

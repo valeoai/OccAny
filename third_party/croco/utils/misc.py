@@ -22,6 +22,7 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 from torch import inf
+
 import idr_torch
 
 class SmoothedValue(object):

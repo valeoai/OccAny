@@ -69,5 +69,4 @@ def get_parameter_groups(model, offset, weight_decay, layer_decay=1.0, skip_list
 
         parameter_group_vars[group_name]["params"].append(param)
         parameter_group_names[group_name]["params"].append(name)
-    # print("Param groups = %s" % json.dumps(parameter_group_names, indent=2))
     return list(parameter_group_vars.values())

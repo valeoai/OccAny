@@ -603,7 +603,7 @@ class NuScenesDataset(Dataset):
         """Compute lidar origins for RayIoU evaluation.
 
         This function mimics the logic of ``EgoPoseDataset`` in
-        ``occany.occany.metrics.ray_metrics`` to generate a small set of
+        ``occany.metrics.ray_metrics`` to generate a small set of
         virtual lidar origins for a given scene, expressed in the *reference
         frame's ego coordinate system*.
 

@@ -2,15 +2,14 @@
 
 ## Source and Target Directories
 
-**Source:** `/lustre/fsstor/projects/rech/trg/uyl37fq/Occ3D_nuscenes/voxel04`
-**Target:** `/lustre/fsn1/projects/rech/kvd/uyl37fq/data/occ3d_nuscenes`
+Set `OCC3D_SOURCE_DIR` and `OCC3D_TARGET_DIR` before running the extraction script.
 
 ## Source Files
 
 ```
--rw-r----- 1 uyl37fq trg 144M May  6  2023 annotations.json
--rw-r----- 1 uyl37fq trg 2.6G Jun  3 17:52 gts.tar.gz
--rw-r--r-- 1 uyl37fq kvd  29G Oct 24 10:03 imgs.tar.gz
+annotations.json  (~144M)
+gts.tar.gz        (~2.6G)
+imgs.tar.gz       (~29G)
 ```
 
 ## Extraction Instructions
@@ -45,6 +44,6 @@ python datasets_preprocess/nuscenes/preprocess_nuscenes.py \
 ## Test the generated file
 ```bash
 python datasets_preprocess/test_project_lidar.py \
-    --seq_dir /scratch/project/eu-25-92/data/occ3d_nuscenes_processed/scene-0555 \
+    --seq_dir "$SCRATCH/data/occ3d_nuscenes_processed/scene-0555" \
     --frame_ids 002362_5 002364_5
 ```

@@ -2,7 +2,6 @@
 import torch
 import torch.nn as nn
 from occany.model.must3r_blocks.attention import Attention, CachedCrossAttention
-# import must3r.tools.path_to_dust3r  # noqa
 import dust3r.utils.path_to_croco  # noqa: F401
 from models.blocks import Mlp, DropPath
 import math

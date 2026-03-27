@@ -338,14 +338,7 @@ def draw_scene(server: viser.ViserServer, pts3d: np.ndarray,
         fov = 2 * np.arctan2(H / 2, focal[i])
         aspect_ratio = W / H
         frustum_scale = 1
-        # breakpoint()
-        # server.scene.add_camera_frustum(
-        #     name="/test_frustum",
-        #     fov=np.deg2rad(60.0),
-        #     aspect=1.5,
-        #     scale=1.0,
-        #     color=(0, 255, 0),
-        # )
+  
     
         frustum_handle = server.scene.add_camera_frustum(
             name=f"/cams/t{i}",
@@ -377,12 +370,10 @@ def main():
     print(f"Loaded scenes: {', '.join(scenes)}")
 
     pts3d = save_dict['pts3d']
-    # pts3d_local = save_dict['pts3d_local']
     colors = save_dict['colors']
     conf = save_dict['conf']
     focal = save_dict['focal']
     c2w = save_dict['c2w']
-    # c2w_pose = save_dict['c2w_pose']
 
     conf_colors = compute_confidence_colors(conf)
     
@@ -574,7 +565,6 @@ def main():
 
         save_dict = load_data(current_scene_dir, setting)
         pts3d = save_dict['pts3d']
-        # pts3d_local = save_dict['pts3d_local']
         colors = save_dict['colors']
         conf = save_dict['conf']
         conf_colors = compute_confidence_colors(conf)
@@ -597,7 +587,6 @@ def main():
         refresh_conf_slider_bounds()
         focal = save_dict['focal']
         c2w = save_dict['c2w']
-        # c2w_pose = save_dict['c2w_pose']
         H, W = pts3d.shape[1], pts3d.shape[2]
 
     while True:

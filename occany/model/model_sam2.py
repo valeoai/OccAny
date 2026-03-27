@@ -161,7 +161,6 @@ class SAM2(nn.Module):
 
     def forward(self, input_image, max_bs=8):
         # image: 370, 1226, 3
-        # input_image = self._transforms(image)
         # input_image: 3, 1024, 1024
 
         assert (
@@ -340,7 +339,6 @@ class SAM2VideoPredictorOccany(SAM2VideoPredictor):
 
     def _get_image_feature(self, inference_state, frame_idx, batch_size):
         """Compute the image features on a given frame."""
-        # if "images" in inference_state:
         #     # Retrieve correct image features
         #     (
         #         _,

@@ -22,6 +22,8 @@ from depth_anything_3.utils.geometry import (
     unproject
 )
 
+
+
 def get_world_rays(
     coordinates: torch.Tensor,
     extrinsics: torch.Tensor,
@@ -195,9 +197,6 @@ def intrinsics_c2w_to_raymap_np(
 
     
     # Compute camera-space ray directions with z=1 (unnormalized)
-    # x_cam = (u - cx) / fx
-    # y_cam = (v - cy) / fy
-    # z_cam = 1
     x_cam = (u - cx) / fx
     y_cam = (v - cy) / fy
     z_cam = np.ones_like(u)
@@ -215,7 +214,6 @@ def intrinsics_c2w_to_raymap_np(
     t_cam2world = c2w_4x4[:3, 3]   # (3,)
     
     # Transform directions to world space (same as depthmap_to_absolute_camera_coordinates)
-    # X_world = R @ X_cam + t
     # For directions: directions_world = R @ directions_cam (no translation for directions)
     directions_world = np.einsum("ik, hwk -> hwi", R_cam2world, directions_cam)  # (H, W, 3)
     
@@ -608,7 +606,6 @@ def apply_majority_pooling(
         result = voxel_pred_tensor.clone()
         update_mask = to_update_mask & has_valid_votes
         result[update_mask] = pooled_labels[update_mask].to(result.dtype)
-        # print(f"Number of voxels updated: {update_mask.sum()}")
         # Voxels with only empty/other neighbors remain as "other" class
         
         return result.cpu().numpy().astype(np.uint8)
@@ -813,7 +810,6 @@ def process_voxels(
     pooled_masked[:, other_class_label, :, :, :] = -torch.inf
     
     # Find the index (class) with the highest average score.
-    # dim=1 is the channel (class) dimension.
     # Shape: (B, D_out, H_out, W_out)
     final_labels = torch.argmax(pooled_masked, dim=1)
 
@@ -824,12 +820,9 @@ def process_voxels(
     
     return voxel_grid.squeeze()
     # # Convert final_labels to match voxel_grid dtype
-    # final_labels = final_labels.to(voxel_grid.dtype)
     
-    # if other_mask.any():
     #     voxel_grid[other_mask] = final_labels[other_mask]
     
-    # return voxel_grid.squeeze()
 
 
 def compute_vox_visible_mask(voxel_label, camera_poses, K, T_velo_2_cam, voxel_origin, voxel_size=0.2, save_path=None):
@@ -1236,9 +1229,6 @@ def generate_intermediate_poses(camera_poses, views_per_interval, device,
                 cam_pose_end,
                 views_per_interval,
             )
-            # print( cam_pose_start[0, :3, 3])
-            # print(cam_pose_end[0, :3, 3])
-            # print(interp[0, 0, :3, 3])
         
             gen_pose_segments.append(interp)
     
@@ -1425,7 +1415,6 @@ def create_voxel_prediction(pts3d_in_velo, has_semantic, semantic_2ds_th, conf_t
     if has_semantic:
         # Filter out points with empty_class or other_class labels
         valid_semantic_mask = (semantic_2ds_th != empty_class) & (semantic_2ds_th != other_class)
-        # valid_semantic_mask =  semantic_2ds_th != other_class
         
         # Only process points with valid semantic labels
         if valid_semantic_mask.any():
@@ -1515,33 +1504,20 @@ def pointcloud2voxel(pc: torch.Tensor, semantic_2d_logits, voxel_dim, voxel_orig
     n, _ = pc.shape
     
     
-    # pc_grid = (pc + half_size) * (voxel_size - 1.) / grid_size  # thanks @heathentw
     pc_grid = (pc - voxel_origin) / voxel_size
     
     indices_floor = torch.floor(pc_grid)
     indices = indices_floor.long()
-    # batch_indices = torch.arange(b, device=pc.device)
-    # batch_indices = torch.reshape(batch_indices, (1, -1))
-    # batch_indices = torch.tile(batch_indices, (1, n))
-    # batch_indices = torch.reshape(batch_indices, (1, -1))
-    # indices = torch.cat((batch_indices, indices), 2)
-    # indices = torch.reshape(indices, (-1, 4))
     r = pc_grid - indices_floor
     rr = (1. - r, r)
-    # if filter_outlier:
-    #     valid = valid.flatten()
-    #     indices = indices[valid]
 
     def interpolate_scatter3d(pos):
         updates_raw = rr[pos[0]][..., 0] * rr[pos[1]][..., 1] * rr[pos[2]][..., 2]
         updates = updates_raw.flatten()
 
-        # if filter_outlier:
-        #     updates = updates[valid]
 
         indices_shift = torch.tensor([pos]).to(pc.device)
         indices_loc = indices + indices_shift
-        # out_shape = (b,) + (voxel_size,) * 3
         valid = (indices_loc[:, 0] >= 0) & (indices_loc[:, 0] < voxel_dim[0]) \
                 & (indices_loc[:, 1] >= 0) & (indices_loc[:, 1] < voxel_dim[1]) \
                 & (indices_loc[:, 2] >= 0) & (indices_loc[:, 2] < voxel_dim[2])
@@ -1558,9 +1534,7 @@ def pointcloud2voxel(pc: torch.Tensor, semantic_2d_logits, voxel_dim, voxel_orig
         # Expand indices for each semantic class
         expanded_indices = indices_loc_flat[valid].unsqueeze(-1).expand(-1, num_classes)
         expanded_updates = updates[valid].unsqueeze(-1) * semantic_2d_logits[valid]
-        # expanded_updates = semantic_2d_logits[valid]
         
-        # out_sem = out_sem.view(*voxel_dim, num_classes)
         # Use max aggregation instead of sum - keeps highest confidence prediction per voxel
         # This is more robust than summing, which can accumulate errors
         out_sem.scatter_reduce_(0, expanded_indices, expanded_updates, reduce='amax')
@@ -1669,7 +1643,6 @@ def save_rgb_images(rgb_tensors, idx, save_dir: str, stem: str, verbose: bool = 
 
       
   
-        # for f_id, img in enumerate(t):
         for f_id, view_idx in enumerate(idx):
             img = t[0, f_id]
             img_uint8 = (img * 255.0).round().to(torch.uint8).numpy()  # RGB
@@ -1792,8 +1765,6 @@ def visualize_depth(depth, save_path, colormap="Spectral",
     depth_colored = (depth_colored * 255).astype(np.uint8)
     depth_colored_hwc = chw2hwc(depth_colored)
     depth_colored_img = Image.fromarray(depth_colored_hwc)
-    # if mask is not None:
-    #     for h, w in np.column_stack(np.where(mask)):
     #         cv2.circle(depth_colored_img, (w, h), radius=5, color=(0, 0, 255))
     depth_colored_img.save(save_path)
 
@@ -1846,19 +1817,13 @@ def project_lidar_world2camera(pc_world, img_w, img_h, camera_pose, cam_K, filte
         points3d_camera = points3d_camera[condition]
         inliner_indices_arr = inliner_indices_arr[condition]
 
-    # depthmap = np.zeros((img_h, img_w))
     xs = np.round(points2d_camera[:, 0]).clip(0, img_w - 1).astype(np.int32)
     ys = np.round(points2d_camera[:, 1]).clip(0, img_h - 1).astype(np.int32)
     depthmap = np.zeros((img_h, img_w))
     depthmap[ys, xs] = points3d_camera[:, 2]    
     # Before the final assignment
 
-    # depthmap = np.full((img_h, img_w), np.inf)  # Initialize with infinity
-    # for i in range(len(points2d_camera)):
-    #     x, y = xs[i], ys[i]
-    #     depthmap[y, x] = min(depthmap[y, x], points3d_camera[i, 2])
-    # depthmap[depthmap == np.inf] = 0  # Replace unprojected pixels with 0
-    
+
     return depthmap, points2d_camera, points3d_camera, inliner_indices_arr
 
 

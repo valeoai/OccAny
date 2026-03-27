@@ -37,6 +37,13 @@ class DA3Wrapper(DepthAnything3):
         # Remove unused cam_enc and cam_dec modules to save memory
         self._remove_unused_modules()
 
+    def to(self, *args, **kwargs):
+        module = super().to(*args, **kwargs)
+        # DepthAnything3 caches self.device; clear it after moving modules so
+        # subsequent _get_model_device() calls reflect the real parameter device.
+        self.device = None
+        return module
+
     def _remove_unused_modules(self):
         """Remove unused cam_enc and cam_dec modules to save ~59M parameters."""
         if hasattr(self.model, 'cam_enc') and self.model.cam_enc is not None:
@@ -65,6 +72,49 @@ class DA3Wrapper(DepthAnything3):
         """Change alt_start for backbone (camera_token already exists)."""
         self.model.backbone.pretrained.alt_start = alt_start
         return self
+
+    def get_backbone_metadata(self) -> Dict[str, object]:
+        """Return backbone metadata used for logging/debugging in training."""
+        backbone = getattr(self.model, "backbone", None)
+        if backbone is None:
+            raise RuntimeError("Backbone is not initialized on this DA3 model.")
+
+        pretrained = getattr(backbone, "pretrained", None)
+        if pretrained is None:
+            raise RuntimeError("DA3 backbone does not expose pretrained DinoV2 blocks.")
+
+        out_layers = getattr(backbone, "out_layers", ())
+        if out_layers is None:
+            out_layers = ()
+        out_layers = tuple(int(x) for x in out_layers)
+
+        token_dim = getattr(pretrained, "embed_dim", None)
+        if token_dim is None:
+            raise RuntimeError("DA3 pretrained backbone does not define embed_dim.")
+
+        cat_token = getattr(pretrained, "cat_token", None)
+        if cat_token is None:
+            cat_token = getattr(backbone, "cat_token", False)
+
+        feature_dim = None if token_dim is None else int(token_dim) * (2 if bool(cat_token) else 1)
+
+        alt_start = getattr(pretrained, "alt_start", None)
+        if alt_start is None:
+            alt_start = getattr(backbone, "alt_start", None)
+
+        name = getattr(backbone, "name", None)
+        if name is None and pretrained is not None:
+            name = getattr(pretrained, "name", None)
+        if name is None:
+            name = type(pretrained).__name__ if pretrained is not None else type(backbone).__name__
+
+        return {
+            "name": name,
+            "token_dim": None if token_dim is None else int(token_dim),
+            "feature_dim": feature_dim,
+            "out_layers": out_layers,
+            "alt_start": alt_start,
+        }
 
     def init_sam3_head(self, img_size=518, embed_dim=256, patch_size=14, device=None, use_dpt_proj=False):
         """
@@ -141,78 +191,6 @@ class DA3Wrapper(DepthAnything3):
         # Restore view dimension: (BT, ...) -> (B, T, ...)
         return tuple(out.reshape(B, T, *out.shape[1:]) for out in sam_outputs)
 
-    
-    def apply_lora(self, lora_r=8, lora_alpha=8, lora_dropout=0.1, lora_target_modules='qkv', fine_tune_layers=None):
-        """
-        Apply LoRA (Low-Rank Adaptation) to the DinoV2 backbone.
-        
-        Args:
-            lora_r: LoRA rank (dimension of the low-rank matrices)
-            lora_alpha: LoRA alpha (scaling factor)
-            lora_dropout: LoRA dropout rate
-            lora_target_modules: Comma-separated string or list of target module names
-            fine_tune_layers: Optional list of layer indices (0-23) to fully fine-tune 
-                              instead of using LoRA. If None, all layers use LoRA.
-        
-        Returns:
-            self for method chaining
-        """
-        from peft import LoraConfig, get_peft_model
-        
-        # Parse target modules from comma-separated string if needed
-        if isinstance(lora_target_modules, str):
-            target_modules = [m.strip() for m in lora_target_modules.split(',')]
-        else:
-            target_modules = list(lora_target_modules)
-        
-        print('Applying LoRA adapters to backbone...')
-        print(f'  - LoRA rank (r): {lora_r}')
-        print(f'  - LoRA alpha: {lora_alpha}')
-        print(f'  - LoRA dropout: {lora_dropout}')
-        print(f'  - Target modules: {target_modules}')
-        
-        # DinoV2-L has 24 transformer blocks (depth=24)
-        total_layers = 24
-        lora_layers = None
-        
-        if fine_tune_layers is not None:
-            fine_tune_layers = [int(i) for i in fine_tune_layers]
-            # Layers for LoRA = all layers NOT in fine_tune_layers
-            lora_layers = [i for i in range(total_layers) if i not in fine_tune_layers]
-            print(f'  - Selective LoRA: layers {lora_layers} will use LoRA, layers {fine_tune_layers} will be fully fine-tuned.')
-        else:
-            print(f'  - LoRA will be applied to all {total_layers} layers.')
-            fine_tune_layers = []
-
-        # Create LoRA configuration for the DinoV2 backbone
-        lora_config = LoraConfig(
-            r=lora_r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            target_modules=target_modules,
-            layers_to_transform=lora_layers,
-            bias="none",
-        )
-        
-        # Apply LoRA to the backbone
-        self.model.backbone = get_peft_model(self.model.backbone, lora_config)
-        self.model.backbone.print_trainable_parameters()
-        
-        # NOTE: Head trainability is now controlled by --freeze_head flag in training script
-        # Do NOT unconditionally unfreeze the head here
-        
-        # If specific layers were withheld from LoRA, unfreeze them for full fine-tuning
-        if fine_tune_layers:
-            print(f'Unfreezing layers {fine_tune_layers} for full fine-tuning...')
-            # DinoV2 blocks are in self.model.backbone.base_model.model.pretrained.blocks
-            # After PEFT wrapping, the hierarchy is: peft_model.base_model.model
-            for layer_idx in fine_tune_layers:
-                block = self.model.backbone.base_model.model.pretrained.blocks[layer_idx]
-                for param in block.parameters():
-                    param.requires_grad = True
-        
-        print('LoRA adapters applied to backbone. Specified layers and DualDPT head remain trainable.')
-        return self
     
     def init_aux_branch(self, n_layers=6):
         """
@@ -419,7 +397,6 @@ class DA3Wrapper(DepthAnything3):
         pose_from_depth_ray=False,
         point_from_depth_and_pose=False,
         return_loss_stats=False,
-        # gen_batch_size=16,
         gen_batch_size=8,
         keep_sam_feats=True,
         keep_aux_feats=True,
@@ -435,6 +412,7 @@ class DA3Wrapper(DepthAnything3):
         B = img_views[0]['img'].shape[0]
         nimgs = len(img_views)
         n_gen_views = len(gen_views)
+     
         
         # Get image dimensions
         _, _, H, W = img_views[0]['img'].shape
@@ -626,17 +604,12 @@ class DA3Wrapper(DepthAnything3):
             ray.shape[-3],
             ray.shape[-2],
         )
-        # pred_extrinsic = affine_inverse(pred_extrinsic) # w2c -> c2w
         pred_extrinsic = pred_extrinsic[:, :, :3, :]
         pred_intrinsic = torch.eye(3, 3)[None, None].repeat(pred_extrinsic.shape[0], pred_extrinsic.shape[1], 1, 1).clone().to(pred_extrinsic.device)
         pred_intrinsic[:, :, 0, 0] = pred_focal_lengths[:, :, 0] / 2 * width
         pred_intrinsic[:, :, 1, 1] = pred_focal_lengths[:, :, 1] / 2 * height
         pred_intrinsic[:, :, 0, 2] = pred_principal_points[:, :, 0] * width * 0.5
         pred_intrinsic[:, :, 1, 2] = pred_principal_points[:, :, 1] * height * 0.5
-        # del output.ray
-        # del output.ray_conf
-        # output.extrinsics = pred_extrinsic
-        # output.intrinsics = pred_intrinsic
         return pred_extrinsic, pred_intrinsic
         
     def _process_camera_estimation(
@@ -645,16 +618,7 @@ class DA3Wrapper(DepthAnything3):
         """Process camera pose estimation if camera decoder is available."""
    
         pose_enc = self.cam_dec(feats[-1][1])
-        # Remove ray information as it's not needed for pose estimation
-        # if "ray" in output:
-        #     del output.ray
-        # if "ray_conf" in output:
-        #     del output.ray_conf
-
-        # Convert pose encoding to extrinsics and intrinsics
         c2w, intrinsics = pose_encoding_to_extri_intri(pose_enc, (H, W))
-        # output.extrinsics = affine_inverse(c2w)
-        # output.intrinsics = ixt
 
         return c2w, intrinsics
 
@@ -732,14 +696,12 @@ class DA3Wrapper(DepthAnything3):
 
         save_outputs = False
         if save_outputs:
-            # Auto-incrementing folder logic for /scratch/project/eu-25-92/ssc_output/da3/
-            base_output_dir = "/scratch/project/eu-25-92/ssc_output/da3"
+            # Auto-incrementing folder logic for debug output saving
+            base_output_dir = os.environ.get("DA3_DEBUG_OUTPUT", "debug_output/da3")
             os.makedirs(base_output_dir, exist_ok=True)
             
             # Find next available folder number (00000, 00001, ...)
             folder_idx = 0
-            # while os.path.exists(os.path.join(base_output_dir, f"{folder_idx:05d}")):
-            #     folder_idx += 1
             
             output_folder = os.path.join(base_output_dir, f"{folder_idx:05d}")
             os.makedirs(output_folder, exist_ok=True)
@@ -755,11 +717,6 @@ class DA3Wrapper(DepthAnything3):
             if intrinsics is not None and c2w is not None:
                 focal = torch.stack([intrinsics[batch_idx, :, 0, 0], intrinsics[batch_idx, :, 1, 1]], dim=-1).detach().cpu()  # (T, 2)
                 c2w_save = c2w[batch_idx].detach().cpu()  # (T, 3, 4) camera-to-world
-                
-                # Apply scaling factor of 30 to scene coordinates
-                # SCALE_FACTOR = 30
-                # pts3d_render = pts3d_render * SCALE_FACTOR  # Scale 3D points
-                # c2w_save[:, :, 3] = c2w_save[:, :, 3] * SCALE_FACTOR  # Scale translation component
                 
                 # Create save dictionary
                 save_dict = {
@@ -918,7 +875,7 @@ class DA3Wrapper(DepthAnything3):
             export_feat_layers = list(export_feat_layers)
         
         # Pass patch tokens through DinoV2 backbone using is_gen=True
-        # This uses the forward method which is compatible with PEFT-wrapped models
+        # This uses the same backbone forward API as reconstruction mode.
         feats, aux_feats = self.model.backbone(
             patch_tokens,
             is_gen=True,

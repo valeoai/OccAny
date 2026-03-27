@@ -48,28 +48,7 @@ class ClassMapping:
     
     
     def define_kitti_class_mapping(self):
-        # id_2_kitti_classes = [
-        #     "empty",
-        #     "car",
-        #     "bicycle",
-        #     "motorcycle",
-        #     "truck",
-        #     "other-vehicle",
-        #     "person",
-        #     "bicyclist",
-        #     "motorcyclist",
-        #     "road",
-        #     "parking",
-        #     "sidewalk",
-        #     "other-ground",
-        #     "building",
-        #     "fence",
-        #     "vegetation",
-        #     "trunk",
-        #     "terrain",
-        #     "pole",
-        #     "traffic-sign",
-        # ]
+  
         id_2_kitti_classes = [
             "empty", # "empty", we map sky to empty
             "car",
@@ -117,23 +96,7 @@ class ClassMapping:
     
     
     def define_common_classes(self):
-        # common_classes_2_id = {
-        #     "empty": 0,
-        #     "car": 1,
-        #     "rider": 2,
-        #     "truck": 3,
-        #     "other-vehicle": 4,
-        #     "person": 5,
-        #     "road": 6,
-        #     "sidewalk": 7,
-        #     "building": 8,
-        #     "fence": 9,
-        #     "vegetation": 10,
-        #     "terrain": 11,
-        #     "pole": 12,
-        #     "traffic-sign": 13,
-        #     "unknown": 255,
-        # }
+
         
         common_classes_2_id = {
             "empty": 0,

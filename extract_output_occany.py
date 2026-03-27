@@ -243,7 +243,6 @@ if __name__ == '__main__':
             raise ValueError(f"Unsupported dataset: {args.dataset}")
     toggle_memory_efficient_attention(enabled=True)
 
-    # print("scale by gt depth:", args.scale_by_gt_depth)
 
     save_dir = f"{args.exp_name}_{args.setting}_{args.dataset}{args.image_size}"
     if args.boxes_folder is not None:
@@ -281,11 +280,11 @@ if __name__ == '__main__':
     da3_model_recon = None
 
     if args.model == "occany_must3r":
-        weights_path = REPO_ROOT / "checkpoints" / "occany_must3r.pth"
+        weights_path = REPO_ROOT / "checkpoints" / "occany.pth"
         if not weights_path.is_file():
             raise FileNotFoundError(
                 f"OccAny Must3R checkpoint not found: {weights_path}. "
-                "Expected the merged checkpoint at checkpoints/occany_must3r.pth."
+                "Expected the merged checkpoint at checkpoints/occany.pth."
             )
         encoder = Dust3rEncoder()
         checkpoint = torch.load(weights_path, map_location='cpu', weights_only=False)
@@ -330,8 +329,8 @@ if __name__ == '__main__':
         encoder.eval()
         decoder.eval()
     elif args.model == "occany_da3":
-        gen_weights = REPO_ROOT / "checkpoints" / "occany_da3_gen.pth"
-        recon_weights = REPO_ROOT / "checkpoints" / "occany_da3_recon.pth"
+        gen_weights = REPO_ROOT / "checkpoints" / "occany_plus_gen.pth"
+        recon_weights = REPO_ROOT / "checkpoints" / "occany_plus_recon.pth"
         print("[INFO] Preparing DA3 model(s)")
         da3_model_gen, da3_model_recon, checkpoint_args = setup_da3_models(
             recon_model_path=recon_weights,
@@ -402,7 +401,7 @@ if __name__ == '__main__':
             ensemble_modules = [da3_model_gen, da3_model_recon, pretrained_semantic_encoder]
             total_params, trainable_params = count_unique_parameters(ensemble_modules)
             print(
-                f"Model 'occany_da3_ensemble' - total parameters: {total_params:,}, "
+                f"Model 'occany_plus_ensemble' - total parameters: {total_params:,}, "
                 f"trainable parameters: {trainable_params:,}"
             )
         else:
@@ -410,7 +409,7 @@ if __name__ == '__main__':
             total_params = base_total_params + semantic_encoder_total_params
             trainable_params = base_trainable_params + semantic_encoder_trainable_params
             print(
-                f"Model 'occany_da3_gen' - total parameters: {total_params:,}, "
+                f"Model 'occany_plus_gen' - total parameters: {total_params:,}, "
                 f"trainable parameters: {trainable_params:,}"
             )
         if semantic_encoder_total_params > 0:
@@ -554,20 +553,6 @@ if __name__ == '__main__':
         # Compute camera poses for recon views (common for all dataset types now)
         recon_camera_poses = torch.stack([view['camera_pose'] for view in recon_views], dim=1)
         
-        # Compute visible mask
-        # Optional: save visualization by passing save_path parameter
-        # vox_visible_mask = compute_vox_visible_mask(voxel_label, recon_camera_poses, K[:, 0], T_velo_2_cam, 
-        #                                              voxel_origin, voxel_size=0.2, 
-        #                                              save_path='./debug_voxel_vis')
-        # vox_visible_mask = compute_vox_visible_mask(voxel_label, recon_camera_poses, K[:, 0], T_velo_2_cam, voxel_origin, 
-        #                                             voxel_size=0.2,
-        #                                             save_path='/scratch/project/eu-25-92/debug_voxel_vis')
-        # vox_visible_mask = compute_vox_visible_mask(voxel_label, recon_camera_poses, K[:, 0], T_velo_2_cam, voxel_origin, 
-        #                                             voxel_size=0.2)                                
-        
-        # Create filtered voxel label: set non-visible voxels to 255 (invalid)
-        # voxel_label_visible_only = voxel_label.clone()
-        # voxel_label_visible_only[~vox_visible_mask] = 255
         voxel_label_visible_only = None
         
         
@@ -732,19 +717,13 @@ if __name__ == '__main__':
             
 
 
-        # res_0 = img_out_0
         res = img_out
         
-        # gt_views = batch_result['gt_img']
-        # imgs = batch_result['img_input']
         imgs = [v['img'] for v in recon_views]
         imgs = torch.stack(imgs, dim=1)
         if model_family == "da3":
             imgs = denormalize_da3_imgs_to_minus1_1(imgs)
 
-        # pts3d_0 = res_0[args.key_to_get_pts3d]
-        # pts3d_local_0 = res_0['pts3d_local']
-        # conf_0 = res_0['conf']
         
         recon_semantic_2ds = None
         gen_semantic_2ds = None
@@ -1061,19 +1040,8 @@ if __name__ == '__main__':
        
         
         outputs = {}
-        # outputs["online"] = {
-        #     "pts3d": pts3d_0,
-        #     "pts3d_local": pts3d_local_0,
-        #     "conf": conf_0,
-        #     "colors": imgs,
-        #     "gt_depths": gt_depths,
-        #     "focal": res_0['focal'],
-        #     "c2w": res_0['c2w'],
-        #     "semantic_2ds": recon_semantic_2ds,
-        #     # "c2w_pose": res_0['c2w_pose']
-        # }
+    
 
-        # if args.use_render_output:
         pts3d_render = res[args.key_to_get_pts3d]
         pts3d_local_render = res['pts3d_local']
         conf_render = res['conf']
@@ -1148,7 +1116,6 @@ if __name__ == '__main__':
                 raise ValueError(f"Unsupported dataset: {args.dataset}")
             print("item_count", item_count)
             
-            # if item_count % 5 == 0 and args.vis_output_dir is not None:
             
             if item_count % args.vis_interval == 0 and args.vis_output_dir is not None:
                 for name, output in outputs.items():

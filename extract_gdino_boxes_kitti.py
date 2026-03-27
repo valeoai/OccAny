@@ -50,8 +50,6 @@ def scale_depth_with_gt(depths, gt_depths, conf):
         torch.Tensor: Scaled 3D points
     """
     # Extract depth from local 3D points
-    # depths = pts3d_local[..., 2].squeeze(0)
-    # gt_depths = torch.from_numpy(gt_depths).to(depths.device)
     assert conf.shape == depths.shape, f"conf.shape: {conf.shape}, depths.shape: {depths.shape}"
     assert conf.shape == gt_depths.shape, f"conf.shape: {conf.shape}, gt_depths.shape: {gt_depths.shape}"
     # Compute scale factor using ground truth depth
@@ -65,8 +63,6 @@ def scale_depth_with_gt(depths, gt_depths, conf):
                             lr=0.1)
     return scale
     # # Apply scale to the 3D points
-    # pts3d_scaled = pts3d * scale
-    # return pts3d_scaled
 
 
 def get_args_parser():
@@ -83,26 +79,6 @@ def get_args_parser():
     
     return parser
 
-
-
-# def resize_semantic_2ds(semantic_2ds, image_size):
-#     # semantic_2ds = []
-#     # for semantic_2d in semantic_2ds:
-#     # Get original dimensions
-
-#     semantic_2ds = torch.from_numpy(semantic_2ds)
-#     _, H, W = semantic_2ds.shape
-#     # Calculate scale factor to resize long side to image_size
-#     scale = image_size / max(H, W)
-#     new_H, new_W = int(H * scale), int(W * scale)
-#     # Resize while maintaining aspect ratio
-#     semantic_2ds = F.interpolate(semantic_2ds.unsqueeze(1), size=(new_H, new_W), mode='nearest')
-#     cx, cy = new_W//2, new_H//2
-#     halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
-#     semantic_2ds = semantic_2ds[:, :, cy-halfh:cy+halfh, cx-halfw:cx+halfw]
-
-#     # semantic_2ds.append(semantic_2d)
-#     return semantic_2ds.numpy().astype(np.uint8)
 
 
 
@@ -150,7 +126,6 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Invalid image size: {args.image_size}")
 
-    # print("scale by gt depth:", args.scale_by_gt_depth)
 
     preprocessed_root = os.path.join(os.environ['SCRATCH'], 'data/kitti_processed')
     if not args.silent:
@@ -200,8 +175,6 @@ if __name__ == '__main__':
 
     # Process the subset assigned to this worker
     for batch_i, data in enumerate(tqdm(kitti_loader, desc=f"Process {args.pid}/{args.world}")):
-        # input_files = data["image_paths"]
-        # imgs = data["imgs"].to(args.device)
         gdino_imgs = data["gdino_imgs"].to(args.device)
         sam2_imgs = data["sam2_imgs"].to(args.device)
        
@@ -211,13 +184,6 @@ if __name__ == '__main__':
         text_th_str = f"{int(args.text_threshold * 100)}"
         save_dir = os.path.join(preprocessed_root, f"resized_{args.image_size}_box{box_th_str}_text{text_th_str}_DINOB", f"{seq_name}_{begin_frame_id:06d}")
         os.makedirs(save_dir, exist_ok=True)
-        # frame_id = data['begin_frame_id']
-        # gt_depths = data['gt_depths'].to(args.device)
-        # camera_poses = data['cam_poses_in_cam0'].to(args.device)
-        # K = data['cam_k_resized'].to(args.device)
-        # T_velo_2_cam = data['T_velo_2_cam'].to(args.device)
-        # img_path = data['image_paths'][batch_i][0]
-        # kitti_class_names = class_mapping.id_2_kitti_classes
       
         fine_semantic_2ds, boxes, confidences, fine_labels = infer_semantic(
             gdino_imgs[0], sam2_imgs[0], args.semantic, FINE_CLASSES, args.device,

@@ -143,16 +143,8 @@ class RaymapEncoderDA3(BaseTransformer):
                 first_patch_embed = self.patch_embed_sam3_s0
         
         # Projection to combine all feature embeddings into embed_dim
-        # if self.depth > 0:
         self.patch_embed_proj = nn.Linear(per_input_dim * num_feature_embeds, self.embed_dim)
-        # else:
-        #     # Use Mlp for more capacity when no transformer blocks
-        #     self.patch_embed_proj = Mlp(
-        #         in_features=per_input_dim * num_feature_embeds,
-        #         hidden_features=self.embed_dim * 4,
-        #         out_features=self.embed_dim,
-        #         act_layer=nn.GELU
-        #     )
+   
         self.grid_size = first_patch_embed.grid_size
         
     def _get_channel_split_sizes(self):

@@ -46,14 +46,12 @@ class CoreAttention (nn.Module):
         
         if is_memory_efficient_attention_enabled() and (attn_mask is None or attn_mask.dtype != torch.bool):
             assert has_xformers
-            # print('using xformers')
             # q, k, v are batch, num_heads, seqlen, K
             # Supported formats for inputs/outputs:
             # [batch, seqlen, num_heads, K]
             # [batch, seqlen, K] (Legacy format)
             # with (batch, seqlen, num_heads, K), need to use contiguous() or something's wrong with the stride for bwd
             # q, k, v = map(lambda val: val.transpose(1, 2).contiguous(), (q, k, v))
-            # x = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None).reshape(B, Nq, C)
             # the second format is more natural for croco
             if q.dtype != v.dtype:
                 q = q.to(v.dtype)

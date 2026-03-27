@@ -16,8 +16,6 @@ except ImportError:
 
 engine = None
     
-# import torch
-# import torch.nn.functional as F
 
 
 KITTI_COLORS = np.array(

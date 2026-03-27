@@ -98,7 +98,6 @@ class RaymapEncoderDiT(BaseTransformer):
                  mlp_ratio=4,
                  norm_layer=partial(nn.LayerNorm, eps=1e-6),
                  use_time_cond=True,
-                #  in_chans=6,
                  patch_embed='PatchEmbedDust3R',
                  pos_embed='RoPE100',
                  use_raymap_only_conditioning=False,
@@ -128,7 +127,6 @@ class RaymapEncoderDiT(BaseTransformer):
             DiTBlock(embed_dim, num_heads, pos_embed=self.rope, mlp_ratio=mlp_ratio, use_time_cond=use_time_cond) for _ in range(depth)
         ])
         # Zero-out adaLN modulation layers in DiT blocks:
-        # for block in self.blocks_enc:
         #     nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
         #     nn.init.constant_(block.adaLN_modulation[-1].bias, 0)
         
@@ -143,7 +141,6 @@ class RaymapEncoderDiT(BaseTransformer):
         self.initialize_weights()
 
     def set_patch_embed(self, patch_embed_name='PatchEmbedDust3R', 
-                        # in_chans=6,
                         img_size=224, patch_size=16, patch_embed_dim=768, 
                         use_raymap_only_conditioning=False,
                         projection_features=None):
@@ -296,13 +293,11 @@ class RaymapEncoderDiT(BaseTransformer):
             input_idx = 0
             
             if 'pts3d_local' in self.projection_features:
-                # print("using pts3d_local")
                 x_pts3d_local, pos = self.patch_embed_pts3d_local(inputs[input_idx], true_shape=true_shape)
                 x_list.append(x_pts3d_local)
                 input_idx += 1
             
             if 'raymap' in self.projection_features:
-                # print("using raymap")
                 x_raymap, pos_tmp = self.patch_embed_raymap(inputs[input_idx], true_shape=true_shape)
                 x_list.append(x_raymap)
                 if pos is None:
@@ -310,7 +305,6 @@ class RaymapEncoderDiT(BaseTransformer):
                 input_idx += 1
             
             if 'pts3d' in self.projection_features:
-                # print("using pts3d")
                 x_pts3d, pos_tmp = self.patch_embed_pts3d(inputs[input_idx], true_shape=true_shape)
                 x_list.append(x_pts3d)
                 if pos is None:
@@ -318,7 +312,6 @@ class RaymapEncoderDiT(BaseTransformer):
                 input_idx += 1
             
             if 'rgb' in self.projection_features:
-                # print("using rgb")
                 x_rgb, pos_tmp = self.patch_embed_rgb(inputs[input_idx], true_shape=true_shape)
                 x_list.append(x_rgb)
                 if pos is None:
@@ -326,7 +319,6 @@ class RaymapEncoderDiT(BaseTransformer):
                 input_idx += 1
             
             if 'conf' in self.projection_features:
-                # print("using conf")
                 x_conf, pos_tmp = self.patch_embed_conf(inputs[input_idx], true_shape=true_shape)
                 x_list.append(x_conf)
                 if pos is None:
@@ -334,7 +326,6 @@ class RaymapEncoderDiT(BaseTransformer):
                 input_idx += 1
             
             if 'sam' in self.projection_features:
-                # print("using sam")
                 x_sam_256, pos_tmp = self.patch_embed_sam_256(inputs[input_idx], true_shape=true_shape)
                 x_sam_64, _ = self.patch_embed_sam_64(inputs[input_idx + 1], true_shape=true_shape)
                 x_sam_32, _ = self.patch_embed_sam_32(inputs[input_idx + 2], true_shape=true_shape)
@@ -440,9 +431,6 @@ class Must3rDecoder (nn.Module):
         self._init_feedback_mechanism(embed_dim, depth, feedback_type)
         self._init_head(enc_embed_dim, patch_size, embed_dim, distill_img_size, output_dim, depth, norm_layer, landscape_only, head)
         init_feedback_layers(self.feedback_type, self.feedback_layer)
-        # if use_ray_map:
-        #     self.raymap_embed = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        #     torch.nn.init.normal_(self.raymap_embed, std=.02)
         
         
     def _init_pose_predictor(self, embed_dim):
@@ -518,9 +506,7 @@ class Must3rDecoder (nn.Module):
 
     def _compute_prediction_head(self, true_shape, B, nimgs, feats):
         feats[-1] = self.norm_dec(feats[-1])
-        # decout = feats
         with torch.autocast("cuda", dtype=torch.float32):
-            # decout = [tok.float() for tok in decout]
             last_feat = feats[-1]
             pose_feature, dense_feature = last_feat[:, 0, :].float(), last_feat[:, 1:, :].float()
             
@@ -618,14 +604,11 @@ class Must3rDecoder (nn.Module):
                 timesteps=None,
                 is_raymap=False,
                 render=False):
-                # ray_map=None, ray_map_mask=None, 
-                # x_view_0=None, img_view_0=None):
         if isinstance(x, list):
             raise NotImplementedError
             # multiple ar in this batch
             return self.forward_list(x, pos, true_shape, current_mem, render)
 
-        # assert not self.pred_rgb or (ray_map is not None and ray_map_mask is not None), "ray_map and ray_map_mask must be provided if pred_rgb is True"
 
         current_dtype = get_current_dtype(x.dtype)
         B, nimgs, N, Denc = x.shape
@@ -687,9 +670,6 @@ class Must3rDecoder (nn.Module):
 
             
             x_pose_token = x[:, :1]
-            # apply decoder
-            # assert timesteps is not None, "timesteps must be provided"
-            # x = self.apply_time_embed(x, timesteps)
             x = blk(x, mem_i, pos, None, inject_pose_token=self.inject_pose_token[i](x_pose_token))
             feats.append(x)
       
@@ -721,7 +701,6 @@ class Must3rDecoder (nn.Module):
 
         # apply prediction head
         x, pose_out, sam_feats = self._compute_prediction_head(true_shape, B, nimgs, feats)
-        # return memory, pointmaps
         return out, x, pose_out, sam_feats
 
 class CausalMust3rDecoder(Must3rDecoder):
@@ -821,7 +800,6 @@ class CausalMust3rDecoder(Must3rDecoder):
         
         B, nimgs, N, D = x.shape
         mem_D = 2 * D if self.memory_mode == "kv" else D
-        # render=True means we do not update the memory
         assert not render or current_mem is not None
 
         if current_mem is None:
@@ -908,7 +886,6 @@ class CausalMust3rDecoder(Must3rDecoder):
                 mem_i = mem_i.unsqueeze(1).expand(-1, nimgs, -1, -1).reshape(B * nimgs, Nmi, mem_D)
             
             # apply decoder
-            # x = blk(x, mem_i, pos, None, ca_attn_mask=attn_mask)
             x_pose_token = x[:, :1]
             x = blk(x, mem_i, pos, None, 
                 ca_attn_mask=attn_mask,
@@ -930,7 +907,6 @@ class CausalMust3rDecoder(Must3rDecoder):
 
         # apply prediction head
         x, pose_out = self._compute_prediction_head(true_shape, B, nimgs, feats)
-        # return memory, pointmaps
         return out, x, pose_out
 
 
@@ -974,7 +950,6 @@ class Must3r (nn.Module):
         encoder_state_dict = ckpt['encoder']
         incompatible_keys = self.encoder.load_state_dict(encoder_state_dict, strict=False)
         print(incompatible_keys)
-        # encoder_state_dict = {k.replace('blocks_enc.', '').replace('norm_enc', 'enc_norm'): v for k, v in encoder_state_dict.items()}
         incompatible_keys = self.decoder.load_state_dict(ckpt['decoder'], strict=False)
         print(incompatible_keys)
        
@@ -986,12 +961,7 @@ class Must3r (nn.Module):
 
     def set_freeze(self, freeze):  # this is for use by downstream models
         self.freeze = freeze
-        # to_be_frozen = {
-        #     'none':     [],
-        #     'mask':     [self.mask_token],
-        #     'encoder':  [self.mask_token, self.patch_embed, self.enc_blocks],
-        #     'encoder_and_decoder': [self.mask_token, self.patch_embed, self.enc_blocks, self.dec_blocks, self.dec_blocks2],
-        # }
+        
         to_be_frozen = {
             'none':     [],
             'encoder':  [self.encoder],
@@ -1058,14 +1028,8 @@ class Must3r (nn.Module):
             t_forecast_expanded = t_forecast[:, None].expand(-1, _f_forecast.shape[1]).contiguous()
 
             _f1_time = self.time_embed(_f1[:, :, None].clone().transpose(1,2), t1_expanded)
-            # _f1_time_torch = self.time_embed_torch(_f1[:, :, None].clone().transpose(1,2), t1_expanded)
-            # print("max diff", (_f1_time - _f1_time_torch).abs().max().item())
             _f2_time = self.time_embed(_f2[:, :, None].clone().transpose(1,2), t2_expanded)
-            # _f2_time_torch = self.time_embed_torch(_f2[:, :, None].clone().transpose(1,2), t2_expanded)
-            # print("max diff", (_f2_time - _f2_time_torch).abs().max().item())
             _f_forecast_time = self.time_embed(_f_forecast[:, :, None].clone().transpose(1,2), t_forecast_expanded)
-            # _f_forecast_time_torch = self.time_embed_torch(_f_forecast[:, :, None].clone().transpose(1,2), t_forecast_expanded)
-            # print("max diff", (_f_forecast_time - _f_forecast_time_torch).abs().max().item())
             
             _f1_time = _f1_time.squeeze(1)
             _f2_time = _f2_time.squeeze(1)
@@ -1134,19 +1098,6 @@ class Must3r (nn.Module):
         res1 = self.postprocess(pointmaps[:, 0], pointmaps_activation=pointmaps_activation)
         res2 = self.postprocess(pointmaps[:, 1], pointmaps_activation=pointmaps_activation)
         
-        # res1['pts3d'] /= 20
-        # res2['pts3d'] /= 20
-        
-        # save_depth_as_colored_png(res1['pts3d'].cpu().numpy()[0][..., 2], 0, 'demo_data/pts3d_view1.png')
-        # breakpoint()
-        # save_depth_as_colored_png(res2['pts3d'].cpu().numpy()[0][..., 2], 0, 'demo_data/pts3d_view2.png')
-        # res1['pose'] = self.head_pose(pose_feat0)
-        # res2['pose'] = self.head_pose(pose_feat1)
-        
-        # pts1_with_conf = torch.cat([res1['pts3d'], res1['conf'][..., None]], dim=-1)
-        # pts2_with_conf = torch.cat([res2['pts3d'], res2['conf'][..., None]], dim=-1)
-        # save_pcd_as_txt("demo_data/pts3d_view1.txt", pts1_with_conf.cpu().numpy()[0].reshape(-1, 4))
-        # save_pcd_as_txt("demo_data/pts3d_view2.txt", pts2_with_conf.cpu().numpy()[0].reshape(-1, 4))
       
         # feat1, feat2: B, 288, 1024
         res2['pts3d_in_other_view'] = res2.pop('pts3d')  # predict view2's pts3d in view1's frame
@@ -1173,8 +1124,6 @@ class Must3r (nn.Module):
             x2 = self.decoder._head_wrapper([tok.float() for tok in dec2], shape2)
             x3 = self.decoder._head_wrapper([tok.float() for tok in dec_forecast], shape2)
 
-            # res1_semantic = self._downstream_head('_semantic1', [tok.float() for tok in dec1], shape1)
-            # res2_semantic = self._downstream_head('_semantic2', [tok.float() for tok in dec2], shape2)
 
         pointmaps_activation = ActivationType.NORM_EXP
         res1 = self.postprocess(x1, pointmaps_activation=pointmaps_activation)
@@ -1190,320 +1139,4 @@ class Must3r (nn.Module):
         res3['pts3d_in_other_view'] = res3.pop('pts3d') # predict forecast's pts3d in view1's frame
         return res1, res2, res3
 
-    # def postprocess(self, pointmaps, pointmaps_activation=ActivationType.NORM_EXP, compute_cam=False):
-    #     out = {}
-    #     channels = pointmaps.shape[-1]
-    #     out['pts3d'] = pointmaps[..., :3]
-    #     out['pts3d'] = apply_activation(out['pts3d'], activation=pointmaps_activation)
-    #     if channels >= 6:
-    #         out['pts3d_local'] = pointmaps[..., 3:6]
-    #         out['pts3d_local'] = apply_activation(out['pts3d_local'], activation=pointmaps_activation)
-    #     if channels == 4 or channels == 7:
-    #         out['conf'] = 1.0 + pointmaps[..., -1].exp()
 
-    #     if compute_cam:
-    #         H, W = out['conf'].shape[-2:]
-    #         pp = torch.tensor((W / 2, H / 2), device=out['pts3d'].device)
-    #         focal = estimate_focal_knowing_depth(out['pts3d_local'], pp, focal_mode='weiszfeld')
-    #         out['focal'] = focal
-
-    #         batch_dims = out['pts3d'].shape[:-3]
-    #         num_batch_dims = len(batch_dims)
-    #         R, T = roma.rigid_points_registration(
-    #             out['pts3d_local'].reshape(*batch_dims, -1, 3),
-    #             out['pts3d'].reshape(*batch_dims, -1, 3),
-    #             weights=out['conf'].reshape(*batch_dims, -1) - 1.0, compute_scaling=False)
-
-    #         c2w = torch.eye(4, device=out['pts3d'].device)
-    #         c2w = c2w.view(*([1] * num_batch_dims), 4, 4).repeat(*batch_dims, 1, 1)
-    #         c2w[..., :3, :3] = R
-    #         c2w[..., :3, 3] = T.view(*batch_dims, 3)
-    #         out['c2w'] = c2w
-    #     return out
-
-class OccAnyMust3r (nn.Module):
-    def __init__(self, img_size=(512, 512), enc_embed_dim=1024, 
-                 feedback_type='single_mlp', memory_mode='kv', 
-                 embed_dim=768,
-                 freeze="encoder"):
-        super().__init__()
-        
-
-        self.encoder = Dust3rEncoder()
-        self.decoder = Must3rDecoder(img_size=img_size, enc_embed_dim=enc_embed_dim, 
-                                     embed_dim=embed_dim, 
-                                     feedback_type=feedback_type, memory_mode=memory_mode)
-        self.pointmaps_activation = ActivationType.LINEAR
-        print("self.pointmaps_activation", self.pointmaps_activation)
-        self.head_pose = Mlp(in_features=embed_dim, 
-                              hidden_features=embed_dim * 4, out_features=7)
-   
-        self.pose_token = nn.Parameter(
-                torch.randn(1, 3, embed_dim), requires_grad=True
-            )
-        nn.init.normal_(self.pose_token, std=1e-6)
-
-        self.time_embed = RoPE1D()
-        self.time_embed_torch = RoPE1D_torch()
-
-        self.set_freeze(freeze)
-
- 
-
-    def from_pretrained(self, pretrained_model_name_or_path, load_must3r=True):
-        if load_must3r:
-            ckpt = torch.load(pretrained_model_name_or_path, map_location="cpu")
-            print("Loading MUSt3R checkpoint")
-            encoder_state_dict = ckpt['encoder']
-            incompatible_keys = self.encoder.load_state_dict(encoder_state_dict, strict=False)
-            print(incompatible_keys)
-            # encoder_state_dict = {k.replace('blocks_enc.', '').replace('norm_enc', 'enc_norm'): v for k, v in encoder_state_dict.items()}
-            incompatible_keys = self.decoder.load_state_dict(ckpt['decoder'], strict=False)
-            print(incompatible_keys)
-        
-            del ckpt
-        else:
-            ckpt = torch.load(pretrained_model_name_or_path, map_location="cpu")
-            state_dict = ckpt['model']
-            self.load_state_dict(state_dict, strict=True)
-            del ckpt                        
-
-
-    def set_freeze(self, freeze):  # this is for use by downstream models
-        self.freeze = freeze
-        # to_be_frozen = {
-        #     'none':     [],
-        #     'mask':     [self.mask_token],
-        #     'encoder':  [self.mask_token, self.patch_embed, self.enc_blocks],
-        #     'encoder_and_decoder': [self.mask_token, self.patch_embed, self.enc_blocks, self.dec_blocks, self.dec_blocks2],
-        # }
-        to_be_frozen = {
-            'none':     [],
-            'encoder':  [self.encoder],
-            'encoder_and_decoder': [self.encoder, self.decoder],
-        }
-        freeze_all_params(to_be_frozen[freeze])
-        print(f'Freezing {freeze} parameters')
-
-
-    def _decoder(self, f1, pos1, f2, pos2, t1, t2, shape1, shape2):
-        f = torch.stack([f1, f2], dim=1)
-        pos = torch.stack([pos1, pos2], dim=1)
-        shape = torch.stack([shape1, shape2], dim=1)
-      
-        out, x = self.decoder(f, pos, shape)
-       
-        return out, x
-
-
-
-    def _decoder_forecast(self, f1, pos1, f2, pos2, t1, t2, t_forecast):
-        f_forecast, pos_forecast = (f2 + f1)/2, pos2 
-
-        final_output = [(f1, f2, f_forecast)]  # before projection
-        original_D = f1.shape[-1]
-
-        # project to decoder dim
-        f1 = self.decoder.feat_embed_enc_to_dec(f1) # B, n_patches, D
-        f2 = self.decoder.feat_embed_enc_to_dec(f2) + self.decoder.image2_embed # B, n_patches, D
-        f_forecast = self.decoder.feat_embed_enc_to_dec(f_forecast) # B, n_patches, D
-
-        f_pose = self.pose_token.expand(f1.shape[0], -1, -1)
-        # Create a special position for the pose token at (0,0,0) - outside the normal patch grid
-        pose_pos = torch.full((f1.shape[0], 1, pos1.shape[-1]), 0, device=pos1.device, dtype=pos1.dtype)
-        
-        f1 = torch.cat([f_pose[:, 0:1], f1], dim=1)
-        f2 = torch.cat([f_pose[:, 1:2], f2], dim=1)
-        f_forecast = torch.cat([f_pose[:, 2:3], f_forecast], dim=1)
-        
-        # shift positions by 1 to account for the pose token
-        pos1, pos2, pos_forecast = pos1 + 1, pos2 + 1, pos_forecast + 1 
-        pos1 = torch.cat([pose_pos, pos1], dim=1)
-        pos2 = torch.cat([pose_pos, pos2], dim=1)
-        pos_forecast = torch.cat([pose_pos, pos_forecast], dim=1)
-        
-
-        final_output.append((f1, f2, f_forecast))
-        for blk1 in self.decoder.blocks_dec:
-            _f1, _f2, _f_forecast = final_output[-1]
-    
-            # img1 side
-            _f1_cond = _f2
-            _pos1_cond = pos2
-            f1 = blk1(_f1, blk1.prepare_y(_f1_cond), pos1, _pos1_cond)
-
-            # img2 side
-            _f2_cond = _f1
-            _pos2_cond = pos1
-            f2 = blk1(_f2, blk1.prepare_y(_f2_cond), pos2, _pos2_cond)
-            
-            # forecast side
-            t1_expanded = t1[:, None].expand(-1, _f1.shape[1]).contiguous()
-            t2_expanded = t2[:, None].expand(-1, _f2.shape[1]).contiguous()
-            t_forecast_expanded = t_forecast[:, None].expand(-1, _f_forecast.shape[1]).contiguous()
-
-            _f1_time = self.time_embed(_f1[:, :, None].clone().transpose(1,2), t1_expanded)
-            # _f1_time_torch = self.time_embed_torch(_f1[:, :, None].clone().transpose(1,2), t1_expanded)
-            # print("max diff", (_f1_time - _f1_time_torch).abs().max().item())
-            _f2_time = self.time_embed(_f2[:, :, None].clone().transpose(1,2), t2_expanded)
-            # _f2_time_torch = self.time_embed_torch(_f2[:, :, None].clone().transpose(1,2), t2_expanded)
-            # print("max diff", (_f2_time - _f2_time_torch).abs().max().item())
-            _f_forecast_time = self.time_embed(_f_forecast[:, :, None].clone().transpose(1,2), t_forecast_expanded)
-            # _f_forecast_time_torch = self.time_embed_torch(_f_forecast[:, :, None].clone().transpose(1,2), t_forecast_expanded)
-            # print("max diff", (_f_forecast_time - _f_forecast_time_torch).abs().max().item())
-            
-            _f1_time = _f1_time.squeeze(1)
-            _f2_time = _f2_time.squeeze(1)
-            _f_forecast_time = _f_forecast_time.squeeze(1)
-
-            _f_forecast_cond = torch.cat([_f1_time, _f2_time], dim=1)
-            _pos_forecast_cond = torch.cat([pos1, pos2], dim=1)
-
-            f_forecast = blk1(_f_forecast_time, blk1.prepare_y(_f_forecast_cond), pos_forecast, _pos_forecast_cond)
-
-            # store the result
-            final_output.append((f1, f2, f_forecast))
-        
-        
-        del final_output[1]  # duplicate with final_output[0]
-        final_output[-1] = tuple(map(self.decoder.norm_dec, final_output[-1]))
-
-        return zip(*final_output)
-
-    def _encode_image_pairs(self, img1, img2, true_shape1, true_shape2):
-        if img1.shape[-2:] == img2.shape[-2:]:
-            out, pos = self.encoder(torch.cat((img1, img2), dim=0),
-                                             torch.cat((true_shape1, true_shape2), dim=0))
-
-            out, out2 = out.chunk(2, dim=0)
-            pos, pos2 = pos.chunk(2, dim=0)
-        else:
-            out, pos = self.encoder(img1, true_shape1)
-            out2, pos2 = self.encoder(img2, true_shape2)
-        return out, out2, pos, pos2
-
-    def _encode_symmetrized(self, view1, view2):
-        img1 = view1['img']
-        img2 = view2['img']
-        B = img1.shape[0]
-
-
-        # Recover true_shape when available, otherwise assume that the img shape is the true one
-        shape1 = view1.get('true_shape', torch.tensor(img1.shape[-2:])[None].repeat(B, 1))
-        shape2 = view2.get('true_shape', torch.tensor(img2.shape[-2:])[None].repeat(B, 1))
-
-        # warning! maybe the images have different portrait/landscape orientations
-        if is_symmetrized(view1, view2):
-            # computing half of forward pass!'
-            feat1, feat2, pos1, pos2 = self._encode_image_pairs(img1[::2], img2[::2], shape1[::2], shape2[::2])
-            feat1, feat2 = interleave(feat1, feat2)
-            pos1, pos2 = interleave(pos1, pos2)
-        else:
-            feat1, feat2, pos1, pos2 = self._encode_image_pairs(img1, img2, shape1, shape2)
-
-        return (shape1, shape2), (feat1, feat2), (pos1, pos2)
-
-
-    def forward(self, view1, view2, t_forecast=None):
-        # encode the two images --> B,S,D
-        (shape1, shape2), (feat1, feat2), (pos1, pos2) = self._encode_symmetrized(view1, view2)
-        
-        t1, t2 = view1['timestep'], view2['timestep']
-        shape1 = view1['true_shape']
-        shape2 = view2['true_shape']
-        # combine all ref images into object-centric representation
-        # dec1, dec2 = self._decoder(feat1, pos1, feat2, pos2)
-        _, pointmaps = self._decoder(feat1, pos1, feat2, pos2, t1, t2, shape1, shape2)
-       
-        # pointmaps_activation = self.decoder.pointmaps_activation
-        
-        
-        res1 = self.postprocess(pointmaps[:, 0], pointmaps_activation=self.pointmaps_activation)
-        res2 = self.postprocess(pointmaps[:, 1], pointmaps_activation=self.pointmaps_activation)
-        
-        # res1['pts3d'] /= 20
-        # res2['pts3d'] /= 20
-        
-        # save_depth_as_colored_png(res1['pts3d'].cpu().numpy()[0][..., 2], 0, 'demo_data/pts3d_view1.png')
-        # breakpoint()
-        # save_depth_as_colored_png(res2['pts3d'].cpu().numpy()[0][..., 2], 0, 'demo_data/pts3d_view2.png')
-        # res1['pose'] = self.head_pose(pose_feat0)
-        # res2['pose'] = self.head_pose(pose_feat1)
-        
-        # pts1_with_conf = torch.cat([res1['pts3d'], res1['conf'][..., None]], dim=-1)
-        # pts2_with_conf = torch.cat([res2['pts3d'], res2['conf'][..., None]], dim=-1)
-        # save_pcd_as_txt("demo_data/pts3d_view1.txt", pts1_with_conf.cpu().numpy()[0].reshape(-1, 4))
-        # save_pcd_as_txt("demo_data/pts3d_view2.txt", pts2_with_conf.cpu().numpy()[0].reshape(-1, 4))
-      
-        # feat1, feat2: B, 288, 1024
-        res2['pts3d_in_other_view'] = res2.pop('pts3d')  # predict view2's pts3d in view1's frame
-        return res1, res2
-
-
-    def forward_forecast(self, view1, view2, t_forecast=None):
-        # encode the two images --> B,S,D
-        (shape1, shape2), (feat1, feat2), (pos1, pos2) = self._encode_symmetrized(view1, view2)
-        
-        t1, t2 = view1['timestep'], view2['timestep']
-        # combine all ref images into object-centric representation
-        # dec1, dec2 = self._decoder(feat1, pos1, feat2, pos2)
-        dec1, dec2, dec_forecast = self._decoder_forecast(feat1, pos1, feat2, pos2, t1, t2, t_forecast)
-        pose_feat0, pose_feat1, pose_feat2 = dec1[-1][:, 0, :], dec2[-1][:, 0, :], dec_forecast[-1][:, 0, :]
-        dec1, dec2, dec_forecast = list(dec1), list(dec2), list(dec_forecast)
-        for i in range(1, len(dec1)):
-            dec1[i] = dec1[i][:, 1:, :]
-            dec2[i] = dec2[i][:, 1:, :]
-            dec_forecast[i] = dec_forecast[i][:, 1:, :]
-
-        with torch.autocast("cuda", dtype=torch.float32):
-            x1 = self.decoder._head_wrapper([tok.float() for tok in dec1], shape1)
-            x2 = self.decoder._head_wrapper([tok.float() for tok in dec2], shape2)
-            x3 = self.decoder._head_wrapper([tok.float() for tok in dec_forecast], shape2)
-
-            # res1_semantic = self._downstream_head('_semantic1', [tok.float() for tok in dec1], shape1)
-            # res2_semantic = self._downstream_head('_semantic2', [tok.float() for tok in dec2], shape2)
-
-        pointmaps_activation = ActivationType.NORM_EXP
-        res1 = self.postprocess(x1, pointmaps_activation=pointmaps_activation)
-        res2 = self.postprocess(x2, pointmaps_activation=pointmaps_activation)
-        res3 = self.postprocess(x3, pointmaps_activation=pointmaps_activation)
-        res1['pose'] = self.head_pose(pose_feat0)
-        res2['pose'] = self.head_pose(pose_feat1)
-        res3['pose'] = self.head_pose(pose_feat2)
-
-     
-        # feat1, feat2: B, 288, 1024
-        res2['pts3d_in_other_view'] = res2.pop('pts3d')  # predict view2's pts3d in view1's frame
-        res3['pts3d_in_other_view'] = res3.pop('pts3d') # predict forecast's pts3d in view1's frame
-        return res1, res2, res3
-
-    def postprocess(self, pointmaps, pointmaps_activation=ActivationType.NORM_EXP, compute_cam=False):
-        out = {}
-        channels = pointmaps.shape[-1]
-        out['pts3d'] = pointmaps[..., :3]
-        out['pts3d'] = apply_activation(out['pts3d'], activation=pointmaps_activation)
-        if channels >= 6:
-            out['pts3d_local'] = pointmaps[..., 3:6]
-            out['pts3d_local'] = apply_activation(out['pts3d_local'], activation=pointmaps_activation)
-        if channels == 4 or channels == 7:
-            out['conf'] = 1.0 + pointmaps[..., -1].exp()
-
-        if compute_cam:
-            H, W = out['conf'].shape[-2:]
-            pp = torch.tensor((W / 2, H / 2), device=out['pts3d'].device)
-            focal = estimate_focal_knowing_depth(out['pts3d_local'], pp, focal_mode='weiszfeld')
-            out['focal'] = focal
-
-            batch_dims = out['pts3d'].shape[:-3]
-            num_batch_dims = len(batch_dims)
-            R, T = roma.rigid_points_registration(
-                out['pts3d_local'].reshape(*batch_dims, -1, 3),
-                out['pts3d'].reshape(*batch_dims, -1, 3),
-                weights=out['conf'].reshape(*batch_dims, -1) - 1.0, compute_scaling=False)
-
-            c2w = torch.eye(4, device=out['pts3d'].device)
-            c2w = c2w.view(*([1] * num_batch_dims), 4, 4).repeat(*batch_dims, 1, 1)
-            c2w[..., :3, :3] = R
-            c2w[..., :3, 3] = T.view(*batch_dims, 3)
-            out['c2w'] = c2w
-        return out

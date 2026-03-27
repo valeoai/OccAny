@@ -224,8 +224,7 @@ def get_dtype(args):
 
 
 def train(args):
-    # misc.init_distributed_mode(args)
-    misc.init_distributed_mode_jz(args)
+    misc.init_distributed_mode(args)
     
     toggle_memory_efficient_attention(enabled=True)
 
@@ -275,9 +274,6 @@ def train(args):
         distill_criterion = eval(args.distill_criterion)
   
     img_encoder = Dust3rEncoder()
-    # raymap_encoder = RaymapEncoder()
-    # raymap_encoder = RaymapEncoder(embed_dim=768, memory_mode="kv")
-    # raymap_encoder = RaymapEncoderDecoderOnly()
     print("use_time_cond: {}".format(args.time_cond))
 
     
@@ -297,7 +293,6 @@ def train(args):
     if args.not_pred_raymap:
         raymap_encoder = None
     else:
-        # raymap_encoder = RaymapEncoderDiT(use_time_cond=args.time_cond, in_chans=13)
         raymap_encoder = RaymapEncoderDiT(use_time_cond=args.time_cond,
                                           use_raymap_only_conditioning=args.use_raymap_only_conditioning,
                                           projection_features=args.projection_features)

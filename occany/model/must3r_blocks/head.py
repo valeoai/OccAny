@@ -357,10 +357,3 @@ class SAM3Head(nn.Module):
         # Return (feat_s0, feat_s1, feat_s2, pre_neck_feat) as a tuple
         # [B, 256, 148, 148], [B, 256, 74, 74], [B, 256, 37, 37], [B, 1024, 37, 37]
         return sam3_features[0], sam3_features[1], sam3_features[2], pre_neck_feat
-        # Return dict matching SAM3VLBackbone.forward_image() output
-        # return {
-        #     "vision_features": sam3_features[-1],  # lowest-res in remaining features
-        #     "vision_pos_enc": sam3_pos,
-        #     "backbone_fpn": sam3_features,
-        #     "sam2_backbone_out": None,
-        # } 

@@ -83,7 +83,6 @@ class SSCMetrics:
         self.completion_fp += fp
         self.completion_fn += fn
 
-        # mask = (y_true != 255) & (y_pred < self.n_classes)
         mask = y_true != 255
         if nonempty is not None:
             mask = mask & nonempty

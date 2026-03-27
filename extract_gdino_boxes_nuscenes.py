@@ -69,7 +69,6 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Invalid image size: {args.image_size}")
 
-    # print("scale by gt depth:", args.scale_by_gt_depth)
 
     preprocessed_root = os.path.join(os.environ['SCRATCH'], 'data', 'nuscenes_processed')
     if not args.silent:

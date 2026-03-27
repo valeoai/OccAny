@@ -205,7 +205,6 @@ class TSDFVolume:
         """Convert voxel grid coordinates to world coordinates."""
         vol_origin = vol_origin.astype(np.float32)
         vox_coords = vox_coords.astype(np.float32)
-        #    print(np.min(vox_coords))
         cam_pts = np.empty_like(vox_coords, dtype=np.float32)
 
         for i in prange(vox_coords.shape[0]):
@@ -235,7 +234,6 @@ class TSDFVolume:
     def integrate_tsdf(tsdf_vol, dist, w_old, obs_weight):
         """Integrate the TSDF volume."""
         tsdf_vol_int = np.empty_like(tsdf_vol, dtype=np.float32)
-        # print(tsdf_vol.shape)
         w_new = np.empty_like(w_old, dtype=np.float32)
         for i in prange(len(tsdf_vol)):
             w_new[i] = w_old[i] + obs_weight

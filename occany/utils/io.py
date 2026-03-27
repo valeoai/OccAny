@@ -53,40 +53,8 @@ def load_model(args, chkpt_path, img_encoder, raymap_encoder, decoder, optimizer
         
         if 'optimizer' in checkpoint:
             optim_state_dict = checkpoint['optimizer']
-            # build parameter name map for current optimizer params
-            # name_map = {}
-            # for n, p in img_encoder.named_parameters():
-            #     name_map[id(p)] = f"encoder.{n}"
-            # if raymap_encoder is not None:
-            #     for n, p in raymap_encoder.named_parameters():
-            #         name_map[id(p)] = f"raymap_encoder.{n}"
-            # trainable_decoder = gen_decoder if gen_decoder is not None else decoder
-            # decoder_prefix = "gen_decoder" if gen_decoder is not None else "decoder"
-            # for n, p in trainable_decoder.named_parameters():
-            #     name_map[id(p)] = f"{decoder_prefix}.{n}"
+       
 
-            # # try:
-            # print("[DEBUG] checkpoint optimizer groups:", len(optim_state_dict.get('param_groups', [])))
-            # print("[DEBUG] current optimizer groups:", len(optimizer.param_groups))
-            # cp_groups = optim_state_dict.get('param_groups', [])
-            # if cp_groups:
-            #     cp_lens = [len(g.get('params', [])) for g in cp_groups]
-            #     cur_lens = [len(g.get('params', [])) for g in optimizer.param_groups]
-            #     print("[DEBUG] checkpoint group param lens:", cp_lens)
-            #     print("[DEBUG] current group param lens:", cur_lens)
-            #     print("[DEBUG] first checkpoint group keys:", list(cp_groups[0].keys()))
-            #     print("[DEBUG] first current group keys:", list(optimizer.param_groups[0].keys()))
-            # else:
-            #     cp_lens = []
-            #     cur_lens = []
-            # for gi, g in enumerate(optimizer.param_groups):
-            #     curr_names = [name_map.get(id(p), f"<unnamed_param_{i}>") for i, p in enumerate(g.get('params', []))]
-            #     print(f"[DEBUG] current group {gi} param names:", curr_names)
-            #     if gi < len(cp_lens):
-            #         extra = cur_lens[gi] - cp_lens[gi]
-            #         if extra > 0:
-            #             new_names = curr_names[-extra:]
-            #             print(f"[DEBUG] extra params in current group {gi} (not in checkpoint):", new_names)
             try:
                 optimizer.load_state_dict(optim_state_dict)
                 if 'scaler' in checkpoint:

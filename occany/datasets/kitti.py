@@ -39,9 +39,7 @@ KITTI_CLASS_PROMPTS = [
     ("traffic-sign", ["traffic sign"]),
 ]
 
-# from torchvision import transforms as tvf
 
-# ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 
 def collate_kitti_identity(batch):
@@ -338,12 +336,7 @@ class KittiDataset(Dataset):
             global_poses = self.parse_poses(pose_path, calib)
             self.frame2idx = {}
 
-            # for voxel_path in voxel_paths:
             for begin_frame_id in tqdm(range(min_frame_id, max_frame_id, video_interval), desc=f"Processing frames in {sequence}", leave=False):
-            # for begin_frame_id in [500, 800]: # NOTE: just for testing
-            # for begin_frame_id in [500]:
-                # if sequence in self.scene_errors and f"{begin_frame_id:06d}" in self.scene_errors[sequence]:
-                #     continue
 
 
                 end_frame_id = begin_frame_id + video_length * frame_interval
@@ -462,7 +455,6 @@ class KittiDataset(Dataset):
         lidar_paths = video["lidar_paths"]
         lidar_label_paths = video["lidar_label_paths"]
         cam_poses = video["cam_poses"]  
-        # frame_ids = video["frame_ids"]
         box_paths = video["box_paths"]
 
         start_img = Image.open(image_paths[0])
@@ -566,14 +558,12 @@ class KittiDataset(Dataset):
                 
               
 
-        # in_pose0 = video["pose"][begin_frame_id]
         data = {
             "imgs": torch.stack(imgs),
             "gdino_imgs": torch.stack(gdino_imgs),  
             "sam2_imgs": torch.stack(sam2_imgs),
             "sam3_imgs": torch.stack(sam3_imgs),
             "begin_frame_id": begin_frame_id,
-            # "frame_ids": frame_ids,
             "pose": video["pose"],
             "cam_poses_in_cam0": np.stack(cam_poses_in_cam0),
             "sequence": sequence,
@@ -593,10 +583,6 @@ class KittiDataset(Dataset):
         return data
 
     def depth_from_lidar(self, lidar_points, proj_matrix, img_w, img_h, semantic_2d_label=None ):
-        # lidar_points, lidar_label = self.read_lidar_label(lidar_path, lidar_label_path)
-        # point_in_front_idx = lidar_points[:, 0] > 0 # only keep points in front of the car
-        # lidar_points = lidar_points[point_in_front_idx]
-        # lidar_label = lidar_label[point_in_front_idx]
 
 
 
@@ -609,7 +595,6 @@ class KittiDataset(Dataset):
         img_points = np.round(img_points).astype(np.int32)
         point_in_frustum_idx  = self.select_points_in_frustum(img_points, 0, 0, img_w, img_h)
         point_in_front_idx = depth > 0 # only keep points in front of the image
-        # point_in_front_idx = lidar_points[:, 0] > 0
         keep_idx = point_in_frustum_idx & point_in_front_idx
         img_points, depth = img_points[keep_idx], depth[keep_idx]
 

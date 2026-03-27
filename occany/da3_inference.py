@@ -17,8 +17,31 @@ from occany.utils.helpers import depth2rgb
 from torch_scatter import scatter_min
 
 
+def _ensure_outputs_on_device(output, expected_device):
+    def _device_matches(actual_device, target_device):
+        if actual_device.type != target_device.type:
+            return False
+        if target_device.index is None:
+            return True
+        return actual_device.index == target_device.index
 
+    mismatches = []
 
+    for key, value in output.items():
+        if isinstance(value, torch.Tensor):
+            if not _device_matches(value.device, expected_device):
+                mismatches.append(f"{key}={value.device}")
+        elif isinstance(value, (tuple, list)):
+            for idx, item in enumerate(value):
+                if isinstance(item, torch.Tensor) and not _device_matches(item.device, expected_device):
+                    mismatches.append(f"{key}[{idx}]={item.device}")
+
+    if mismatches:
+        mismatch_str = ", ".join(mismatches)
+        raise RuntimeError(
+            f"inference_occany_da3() returned tensors off the expected device {expected_device}: "
+            f"{mismatch_str}"
+        )
 
 
 @torch.autocast("cuda", dtype=torch.float32)
@@ -293,15 +316,6 @@ def inference_encoder(encoder, imgs, true_shape_view,
         imgs_view = imgs.reshape(B * nimgs, *imgs.shape[2:])
         tshape_view = true_shape_view.reshape(B * nimgs, *true_shape_view.shape[1:])
 
-        # Prepare memory per image efficiently if provided
-        # mem_view = None
-        # mem_raymap_view = None
-        # if mem is not None:
-        #     mem_D = mem.shape[-1]
-        #     # mem: (B, Nm, D) -> repeat for each image
-        #     mem_view = mem.repeat_interleave(nimgs, dim=0)
-        #     breakpoint()
-        #     mem_raymap_view = mem_raymap.repeat_interleave(nimgs, dim=1)
             
 
         if max_bs is None:
@@ -382,8 +396,6 @@ def inference_img(decoder, x, pos, true_shape, mem_batches,
     mem = None
     mem_batches = [0] + np.cumsum(mem_batches).tolist()
     
-    # x_view_0 = x[:, 0:1].contiguous()
-    # img_view_0 = imgs[:, 0:1].contiguous()
   
 
     pointmaps_0 = []
@@ -392,8 +404,6 @@ def inference_img(decoder, x, pos, true_shape, mem_batches,
         xi = x[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
         posi = pos[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
         true_shapei = true_shape[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
-        # imgsi = imgs[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
-        # timestepsi = timesteps[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
         
     
         dec_out = decoder(xi, posi, true_shapei, mem)
@@ -409,7 +419,6 @@ def inference_img(decoder, x, pos, true_shape, mem_batches,
         pose_out_0.append(pose_out_0i)
 
     # concatenate the first pass pointmaps together
-    # if len(pointmaps_0) > 0:
     #     # B, mem_batches[-1] - mem_batches[train_decoder_skip], N, D
     pointmaps_0 = torch.concatenate(pointmaps_0, dim=1)
     if pose_out_0[0] is not None:
@@ -417,8 +426,6 @@ def inference_img(decoder, x, pos, true_shape, mem_batches,
     else:
         pose_out_0 = None
     # else:
-    #     pointmaps_0 = torch.empty((B, 0, *outshape[2:]), dtype=x.dtype, device=x.device)
-    #     pose_out_0 = torch.empty((B, 0, 7), dtype=x.dtype, device=x.device)
 
     # render pointmaps using the accumulated memory
     assert mem is not None
@@ -431,12 +438,6 @@ def inference_img(decoder, x, pos, true_shape, mem_batches,
         print(f"Nmem={Nmem}")
    
  
-    # print(mem[0][0].shape) 
-    # print("mem_labels", mem[1])
-    # print("mem_nimgs", mem[2])
-    # print("mem_protected_imgs", mem[3])
-    # print("mem_protected_tokens", mem[4])
-    # breakpoint()
     # render all images (concat them in the batch dimension for efficiency)
     if pose_out_0 is not None:
         _, pointmaps, pose_out = decoder(x, pos, true_shape, mem, render=True,
@@ -444,9 +445,6 @@ def inference_img(decoder, x, pos, true_shape, mem_batches,
     else:
         _, pointmaps = decoder(x, pos, true_shape, mem, render=True)
         pose_out = None
-    # ray_map=ray_map, ray_map_mask=ray_map_mask,
-                                    # x_view_0=x_view_0,
-                                    # img_view_0=img_view_0,
   
 
     return pointmaps_0, pointmaps, pose_out_0, pose_out, mem, x
@@ -473,8 +471,6 @@ def inference_img_online(decoder, x, pos, true_shape, mem_batches,
         xi = x[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
         posi = pos[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
         true_shapei = true_shape[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
-        # imgsi = imgs[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
-        # timestepsi = timesteps[:, mem_batches[i]:mem_batches[i + 1]].contiguous()
         
         dec_out = decoder(xi, posi, true_shapei, mem)
         if len(dec_out) == 4:
@@ -503,7 +499,6 @@ def inference_img_online(decoder, x, pos, true_shape, mem_batches,
         )
    
     # concatenate the first pass pointmaps together
-    # if len(pointmaps_0) > 0:
     #     # B, mem_batches[-1] - mem_batches[train_decoder_skip], N, D
     pointmaps_0 = torch.concatenate(pointmaps_0, dim=1)
     if pose_out_0[0] is not None:
@@ -537,18 +532,9 @@ def inference_render(decoder,
         print(f"Nmem={Nmem}")
    
  
-    # print(mem[0][0].shape) 
-    # print("mem_labels", mem[1])
-    # print("mem_nimgs", mem[2])
-    # print("mem_protected_imgs", mem[3])
-    # print("mem_protected_tokens", mem[4])
-    # breakpoint()
     # render all images (concat them in the batch dimension for efficiency)
     dec_out = decoder(x, pos, true_shape, mem, render=True,
                                     timesteps=timesteps)
-                                    # ray_map=ray_map, ray_map_mask=ray_map_mask,
-                                    # x_view_0=x_view_0,
-                                    # img_view_0=img_view_0,
     if len(dec_out) == 4:
         _, pointmaps, pose_out, sam_feats = dec_out
     elif len(dec_out) == 3:
@@ -569,32 +555,20 @@ def prepare_imgs_or_raymaps_and_true_shape_mem_batches(views, device, is_raymap=
     if is_raymap:
         imgs_or_raymaps = [b['ray_map'] for b in views]
         imgs_or_raymaps = torch.stack(imgs_or_raymaps, dim=1).to(device)
-        # ray_map_mask = [b['ray_map_mask'] for b in filtered_views]
-        # ray_map_mask = torch.stack(ray_map_mask, dim=1).to(device)
     else:
         imgs_or_raymaps = [b['img'] for b in views]
         imgs_or_raymaps = torch.stack(imgs_or_raymaps, dim=1).to(device)
     B, nimgs, C, H, W, = imgs_or_raymaps.shape
-    true_shape = [torch.tensor(b['true_shape']) for b in views]
+    true_shape = [torch.as_tensor(b['true_shape']) for b in views]
     true_shape = torch.stack(true_shape, dim=1).to(device)
     mem_batches = [2]
     while sum(mem_batches) < nimgs:
         mem_batches.append(1)
 
-    # memory_batch_views = 2
-    # mem_batches = []
-    # while (sum_b := sum(mem_batches)) != nimgs:
-    #     size_b = min(memory_batch_views, nimgs - sum_b)
-    #     mem_batches.append(size_b)
 
     timesteps = [b['timestep'] for b in views]
     timesteps = torch.stack(timesteps, dim=1).to(device).type_as(imgs_or_raymaps)
 
-    # if is_distill:
-    #     distill_imgs = [b['distill_img'] for b in views]
-    #     distill_imgs = torch.stack(distill_imgs, dim=1).to(device)
-    # else:
-    #     distill_imgs = None
     
     
     return imgs_or_raymaps, true_shape, mem_batches, timesteps #, distill_imgs
@@ -619,6 +593,7 @@ def inference_occany_da3(img_views, model,
             **kwargs,
         )
 
+    _ensure_outputs_on_device(output, device)
     return output
 
 def inference_occany_da3_gen(
@@ -651,9 +626,7 @@ def create_gen_conditioning(pts3d, pts_features, focal,
                             gen_views=None, visualize=False,
                             use_raymap_only_conditioning=False,
                             projection_features=None):
-    # gen_views = img_views
     # B, n_gen_views, 4, 4
-    # n_gen_views = len(gen_views)
     device = pts3d.device
     proj_dtype = pts3d.dtype
     raymap_c2w = raymap_c2w.to(device=device, dtype=proj_dtype)
@@ -680,12 +653,9 @@ def create_gen_conditioning(pts3d, pts_features, focal,
         # Rearrange to [B, n_gen_views, H, W, 6] to match cond_features format
         ray_map = ray_map.permute(0, 1, 3, 4, 2)  # [B, n_gen_views, H, W, 6]
         return ray_map
-    # raymap_c2w = torch.stack([v['camera_pose'] for v in gen_views], dim=1).to(device)
     raymap_w2c = affine_inverse(raymap_c2w)
     
     pts3d = pts3d.reshape(B, -1, 3).unsqueeze(1).expand(-1, n_gen_views, -1, -1)
-    # rgb_0 = rgb_0.reshape(B, -1, 3).unsqueeze(1).expand(-1, n_gen_views, -1, -1)
-    # conf_0 = conf_0.reshape(B, -1).unsqueeze(1).expand(-1, n_gen_views, -1)
     if feature_dim > 0:
         pts_features = pts_features.reshape(B, -1, feature_dim).unsqueeze(1).expand(-1, n_gen_views, -1, -1)
     else:
@@ -693,9 +663,6 @@ def create_gen_conditioning(pts3d, pts_features, focal,
     pts3d_in_raymap_poses = geotrf(raymap_w2c, pts3d)
 
     # Test with gt camera intrinsics
-    # focal =  views[0]['camera_intrinsics'][0, 0, 0]
-    # cx = views[0]['camera_intrinsics'][0, 0, 2]
-    # cy = views[0]['camera_intrinsics'][0, 1, 2]
 
     cx = W / 2
     cy = H / 2
@@ -716,7 +683,6 @@ def create_gen_conditioning(pts3d, pts_features, focal,
     cond_pts_features = torch.zeros(B, n_gen_views, H, W, feature_dim, device=device, dtype=pts3d.dtype)
     
     # Set to a default 0 to avoid error
-    # cond_features = torch.cat([cond_pointmap, cond_pts_features], dim=-1)
     
     
 
@@ -802,7 +768,6 @@ def create_gen_conditioning(pts3d, pts_features, focal,
     if return_projected_pts3d:
         return cond_pointmap
 
-    # visualize = True
     # Visualization code
     if visualize and gen_views is not None:
         import os
@@ -1064,11 +1029,9 @@ def loss_of_one_batch_occany_da3(views, model,
         combined_gt = img_views
         
         # # Debug: Check if view 0's pts3d is perpendicular to Z
-        # v0_pts3d = img_views[0]['pts3d'][2]  # batch_idx=2
         # # Print c2w for view 0
-        # print(f"View 0 c2w:\n{img_views[0]['camera_pose'][2]}")
         # # Optionally save ground-truth data for debugging/visualization
-        # save_gt_render_data(img_views, "/scratch/project/eu-25-92/ssc_output/da3_gt/00000", batch_idx=2, imagenet_normalize=True)
+        # save_gt_render_data(img_views, "debug_output/da3_gt/00000", batch_idx=2, imagenet_normalize=True)
         
         result = dict(
             loss=loss,
@@ -1396,7 +1359,6 @@ def loss_of_one_batch_occany_da3_gen(
         
         # Build combined_preds for visualization
         recon_rgb = torch.stack([b['img'] for b in img_views], dim=1).to(device).permute(0, 1, 3, 4, 2)
-        # recon_depth = recon_output.get('depth')
         
         if gen_output is not None:
             gen_rgb = torch.stack([b['img'] for b in gen_views], dim=1).to(device).permute(0, 1, 3, 4, 2)

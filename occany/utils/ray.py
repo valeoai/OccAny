@@ -40,17 +40,6 @@ def save_rgb_images(rgb_tensors, idx, save_dir: str, stem: str, verbose: bool = 
 
         t = tensor.detach().cpu().clamp(0.0, 1.0) # # (B, N, H, W, 3)
 
-        # Bring to (M, H, W, 3)
-        # if t.dim() == 5:  # (B, N, H, W, 3)
-        #     t = t.reshape(-1, *t.shape[-3:])
-        # elif t.dim() == 4:  # (B, 3, H, W)
-        #     t = t.permute(0, 2, 3, 1)
-        # elif t.dim() == 3:  # (H, W, 3)
-        #     t = t.unsqueeze(0)
-        # else:
-        #     raise ValueError(f"Unsupported tensor shape: {t.shape}")
-  
-        # for f_id, img in enumerate(t):
         for f_id in idx:
             img = t[0, f_id]
             img_uint8 = (img * 255.0).round().to(torch.uint8).numpy()  # RGB
@@ -67,7 +56,6 @@ def save_rgb_images(rgb_tensors, idx, save_dir: str, stem: str, verbose: bool = 
 
 
 def get_ray_map(c2w, intrinsics, h, w):
-    # c2w = np.linalg.inv(c2w1) @ c2w2
     i, j = np.meshgrid(np.arange(w), np.arange(h), indexing="xy")
     grid = np.stack([i, j, np.ones_like(i)], axis=-1)
     ro = c2w[:3, 3]
@@ -92,9 +80,6 @@ def visualize_depth(depth, save_path, colormap="Spectral",
     depth_colored = (depth_colored * 255).astype(np.uint8)
     depth_colored_hwc = chw2hwc(depth_colored)
     depth_colored_img = Image.fromarray(depth_colored_hwc)
-    # if mask is not None:
-    #     for h, w in np.column_stack(np.where(mask)):
-    #         cv2.circle(depth_colored_img, (w, h), radius=5, color=(0, 0, 255))
     depth_colored_img.save(save_path)
 
 
@@ -148,19 +133,10 @@ def project_lidar_world2camera(pc_world, img_w, img_h, camera_pose, cam_K, filte
         points3d_camera = points3d_camera[condition]
         inliner_indices_arr = inliner_indices_arr[condition]
 
-    # depthmap = np.zeros((img_h, img_w))
     xs = np.round(points2d_camera[:, 0]).clip(0, img_w - 1).astype(np.int32)
     ys = np.round(points2d_camera[:, 1]).clip(0, img_h - 1).astype(np.int32)
     depthmap = np.zeros((img_h, img_w))
     depthmap[ys, xs] = points3d_camera[:, 2]    
-    # Before the final assignment
-
-    # depthmap = np.full((img_h, img_w), np.inf)  # Initialize with infinity
-    # for i in range(len(points2d_camera)):
-    #     x, y = xs[i], ys[i]
-    #     depthmap[y, x] = min(depthmap[y, x], points3d_camera[i, 2])
-    # depthmap[depthmap == np.inf] = 0  # Replace unprojected pixels with 0
-    
     return depthmap, points2d_camera, points3d_camera, inliner_indices_arr
 
 

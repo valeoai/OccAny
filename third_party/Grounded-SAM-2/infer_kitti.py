@@ -128,7 +128,6 @@ def main():
     logger.info("Loaded Grounding DINO model")
 
 
-    # save_root_dir = "/lustre/fsn1/projects/rech/kvd/uyl37fq/monst3r_output/semantic_kitti_output"
     SCRATCH_DIR = os.environ["SCRATCH"]
     save_root_dir = os.path.join(SCRATCH_DIR, "data/kitti_processed")
     

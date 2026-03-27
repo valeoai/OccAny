@@ -368,7 +368,6 @@ def infer_semantic_from_classname_and_sam3_inference_state(
     confidence_threshold=0.5,
     sam3_resolution=1008,
     view_batch_size=4
-    # view_batch_size=2
 ):
     """Infer 2D semantics by querying SAM3 with text prompts and remapping to KITTI classes."""
     ignore_ids_set = set(ignore_ids)
@@ -482,10 +481,6 @@ def infer_semantic_from_boxes(sam2_model_type,
  
     
     # # Filter labels to only include those in kitti2idx
-    # valid_indices = [i for i, label in enumerate(labels) if label in kitti2idx]
-    # boxes = boxes[valid_indices]
-    # confidences = confidences[valid_indices]
-    # labels = [labels[i] for i in valid_indices]
     
     # process the box prompt for SAM 2
     boxes = boxes * torch.Tensor([W, H, W, H])
@@ -503,10 +498,8 @@ def infer_semantic_from_boxes(sam2_model_type,
     confidences = confidences.cpu().numpy()
     sorted_indices = np.argsort(confidences)[::-1]
     masks = masks[sorted_indices]
-    # class_ids = [class2idx[name] for name in labels]
     label_ids = np.array(label_ids)[sorted_indices]
     
-    # common_class_ids = class_mapping.map_kitti_id_2_common_id(kitti_class_ids)
     
     # Create empty semantic map and apply masks
     sem2d = np.zeros((H, W))
@@ -673,10 +666,6 @@ def infer_semantic_from_boxes_and_sam2_feat_list(sam2_model_type,
 
     
     # # Filter labels to only include those in kitti2idx
-    # valid_indices = [i for i, label in enumerate(labels) if label in kitti2idx]
-    # boxes = boxes[valid_indices]
-    # confidences = confidences[valid_indices]
-    # labels = [labels[i] for i in valid_indices]
     
     # process the box prompt for SAM 2
     boxes_np = boxes.cpu().numpy() if torch.is_tensor(boxes) else boxes
@@ -727,7 +716,6 @@ def infer_semantic_from_boxes_and_sam2_feat_list(sam2_model_type,
                         merged_label_ids.append(key[0])
                         # Use max confidence from the group
                         merged_confidences.append(max(confidences_np[i] for i in indices))
-                        # print(f"Merged {len(indices)} masks for label_id={key[0]}, conf_bin={key[1]*0.01:.2f}")
                 
                 masks = merged_masks
                 label_ids = merged_label_ids
@@ -811,7 +799,6 @@ def infer_semantic_from_boxes_and_sam2_feat_list(sam2_model_type,
                 video_segments[frame_idx][object_id + 1] = mask
         
     # Sort by confidence descending so higher confidence objects get priority
-    # if output_type == "numpy":
     # NumPy version (original)
     confidences_np = confidences.cpu().numpy()
     sorted_indices = np.argsort(confidences_np)[::-1]
@@ -879,7 +866,6 @@ def infer_semantic(
     sam2_model = model_manager.get_sam2(sam2_model_type, image_size=image_size)
 
     
-    # kitti_class_names = class_mapping.id_2_kitti_classes
     class2idx = {name: i for i, name in enumerate(class_names)}
     H, W = gdino_imgs.shape[2:]
 
@@ -905,11 +891,7 @@ def infer_semantic(
     
     # feat_src, _ = semantic.split('@')
     if feat_src == 'pretrained':
-        # img_pil = Image.open(img_path).convert("RGB")
-        # img_pil = img_pil.resize((W, H))
         # sam2_model.predictor.set_image(sam2_imgs[0])
-        # features = sam2_model.predictor.get_image_features(sam2_imgs[0])
-        # features = sam2_model.predictor._features
         image_embed, feat_s1, feat_s0 = sam2_model.forward(sam2_imgs)
         high_res_feats = [feat_s0, feat_s1]
         
@@ -938,7 +920,6 @@ def infer_semantic(
     class_ids = [class2idx[name] for name in labels]
     class_ids = np.array(class_ids)[sorted_indices]
     
-    # common_class_ids = class_mapping.map_kitti_id_2_common_id(kitti_class_ids)
     
     # Create empty semantic map and apply masks
     sem2d = np.zeros((H, W))
@@ -948,5 +929,4 @@ def infer_semantic(
         # Use logical AND with inverse of existing mask to prevent overwrites
         sem2d = np.where(mask.astype(bool) & (sem2d == 0), class_id, sem2d)
     sem2d = sem2d.astype(np.uint8)
-    # sem2d = np.expand_dims(sem2d, axis=0)  # Add channel dimension to get shape [1, H, W]
     return sem2d, boxes, confidences, labels

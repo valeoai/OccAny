@@ -2,8 +2,8 @@
 module load pv/1.8.5
 
 # Define paths
-SOURCE_DIR=/lustre/fsstor/projects/rech/trg/uyl37fq/Occ3D_nuscenes/voxel04
-TARGET_DIR=/lustre/fsn1/projects/rech/kvd/uyl37fq/data/occ3d_nuscenes
+SOURCE_DIR="${OCC3D_SOURCE_DIR:?Set OCC3D_SOURCE_DIR to the directory containing annotations.json, gts.tar.gz, imgs.tar.gz}"
+TARGET_DIR="${OCC3D_TARGET_DIR:?Set OCC3D_TARGET_DIR to the extraction destination}"
 
 # Create target directory if it doesn't exist
 mkdir -p "$TARGET_DIR"

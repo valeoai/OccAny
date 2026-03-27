@@ -33,7 +33,7 @@ https://github.com/user-attachments/assets/a3abde5b-c170-4b5d-818c-262b0df2546f
 
 ---
 
-OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluation utilities, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This public release includes two model variants:
+OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluation utilities, training dataset preparation and training entrypoint scripts, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This public release includes two model variants:
 
 - **OccAny**, based on Must3R + SAM2
 - **OccAny+**, based on Depth Anything 3 + SAM3
@@ -55,36 +55,29 @@ If you find this work or code useful, please cite the paper and consider starrin
 
 ## 2. Table of contents
 
-- [3. Roadmap](#3-roadmap)
-- [4. Installation](#4-installation)
-- [5. Checkpoints](#5-checkpoints)
-- [6. Quick start](#6-quick-start)
-- [7. Key inference flags](#7-key-inference-flags)
-- [8. Visualization](#8-visualization)
-- [9. Evaluation](#9-evaluation)
+- [3. Installation](#3-installation)
+- [4. Checkpoints](#4-checkpoints)
+- [5. Quick start](#5-quick-start)
+- [6. Key inference flags](#6-key-inference-flags)
+- [7. Visualization](#7-visualization)
+- [8. Evaluation](#8-evaluation)
+- [9. Training](#9-training)
 - [10. License](#10-license)
 - [11. Acknowledgments](#11-acknowledgments)
 
-## 3. Roadmap
 
-- [x] Inference code for OccAny (Must3R + SAM2) and OccAny+ (DA3 + SAM3)
-- [x] Pretrained checkpoints
-- [x] Evaluation code for nuScenes and KITTI
-- [ ] Dataset preparation scripts for Waymo, PandaSet, DDAD, VKitti, ONCE
-- [ ] Training code for OccAny (Must3R + SAM2) and OccAny+ (DA3 + SAM3)
-
-## 4. Installation
+## 3. Installation
 
 The commands below create the environment used for the public release and keep all required third-party dependencies local to this repository.
 
-1. Clone the repository
+### 3.1 Clone the repository
 
 ```bash
 git clone https://github.com/valeoai/OccAny.git
 cd OccAny
 ```
 
-2. Create a Python environment
+### 3.2 Create a Python environment
 
 ```bash
 conda create -n occany python=3.12 -y
@@ -92,7 +85,7 @@ conda activate occany
 python -m pip install --upgrade pip setuptools wheel ninja
 ```
 
-3. Install PyTorch and CUDA
+### 3.3 Install PyTorch and CUDA
 
 ```bash
 conda install -c nvidia cuda-toolkit=12.6
@@ -100,13 +93,13 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https
 pip install xformers==0.0.29.post2
 ```
 
-4. Install shared Python dependencies
+### 3.4 Install shared Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-5. Install `torch-scatter`
+### 3.5 Install `torch-scatter`
 
 ```bash
 export CUDA_HOME=$CONDA_PREFIX
@@ -115,7 +108,7 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 pip install torch-scatter --no-cache-dir --no-build-isolation
 ```
 
-6. Use the vendored third-party code
+### 3.6 Use the vendored third-party code
 
 OccAny relies on the vendored copies bundled in `third_party/`:
 
@@ -133,7 +126,7 @@ export PYTHONPATH="$PWD/third_party:$PWD/third_party/dust3r:$PWD/third_party/cro
 
 Avoid adding `third_party/sam2` on top of this unless you explicitly need the standalone SAM2 copy, because it exposes the same top-level module name as `third_party/Grounded-SAM-2`.
 
-7. Compile CroCo's `curope` extension (recommended)
+### 3.7 Compile CroCo's `curope` extension (recommended)
 
 ```bash
 export CUDA_HOME=$CONDA_PREFIX
@@ -149,7 +142,7 @@ This builds a `curope*.so` file next to the sources. The `PYTHONPATH` export abo
 
 The vendored `third_party/croco/models/curope/setup.py` currently targets SM 70, 80, and 90. If your GPU uses a different compute capability, update `all_cuda_archs` there before rebuilding.
 
-8. Optional sanity check
+### 3.8 Optional sanity check
 
 ```bash
 python - <<'PY'
@@ -185,7 +178,7 @@ print("third-party imports: ok")
 PY
 ```
 
-## 5. Checkpoints
+## 4. Checkpoints
 
 Model checkpoints are hosted on Hugging Face:
 
@@ -200,21 +193,22 @@ python -c "from huggingface_hub import snapshot_download; snapshot_download(repo
 
 Expected files under `checkpoints/`:
 
-- `occany_da3_gen.pth`
-- `occany_da3_recon.pth`
-- `occany_must3r.pth`
+- `occany_plus_gen.pth`
+- `occany_plus_recon.pth`
+- `occany.pth`
+- `occany_recon.pth`
 - `groundingdino_swinb_cogcoor.pth`
 - `sam2.1_hiera_large.pt`
 
-## 6. Quick start
+## 5. Quick start
 
 After installation and checkpoint download, you can run the demo commands below from the repo root as-is. By default:
 
 - RGB inputs are read from `./demo_data/input`
 - Outputs are written to `./demo_data/output`
-- The repo already includes sample scenes such as `kitti_08_1390` and `nuscenes_scenes-0039`
+- The repo already includes sample scenes such as `kitti_08_1390` and `nuscenes_scene-0039`
 
-### 6.1 Inference recipes
+### 5.1 Inference recipes
 
 The following presets reproduce the default demo pipeline for each released model variant.
 
@@ -259,10 +253,12 @@ python inference.py \
 
 Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Common artifacts include:
 
-- `pts3d_render.npy` for reconstruction views
-- `pts3d_render_gen.npy` for generated views when `--gen` is enabled
-- `pts3d_render_recon_gen.npy` for the merged point-cloud output
-- `voxel_predictions.pkl` for voxelized predictions and visualization metadata
+- `pts3d_render.npy` for reconstruction-view point clouds and metadata
+- `pts3d_render_gen.npy` for generated-view point clouds and metadata when `--gen` is enabled
+- `pts3d_render_recon_gen.npy` for the merged point-cloud bundle
+- `voxel_predictions.pkl` for voxelized occupancy predictions, camera metadata, and visualization inputs
+
+The `pts3d_*.npy` files are what `vis_viser.py` reads, while `voxel_predictions.pkl` is what `vis_voxel.py` and `compute_metrics_from_saved_voxels.py` consume.
 
 `inference.py` currently uses an urban voxel grid tuned for the included demo scenes:
 
@@ -270,7 +266,7 @@ Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. 
 - `occ_size = [200, 200, 24]`
 - `voxel_origin = [-40.0, -40.0, -3.6]`
 
-If you need a different dataset convention or voxel layout, update these values in `inference.py` before running inference. Two common presets are:
+This `200 x 200 x 24` grid is only the default for direct demo inference. The evaluation pipeline uses its own dataset-specific layouts, so only edit these constants when you want the standalone demo outputs to follow another convention. Two common evaluation presets are:
 
 **KITTI**
 
@@ -289,7 +285,7 @@ voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
 ```
 
 
-## 7. Key inference flags
+## 6. Key inference flags
 
 The most commonly adjusted flags fall into three groups: common flags, semantic flags, and generation-specific flags. If you only want reconstruction output, omit `--gen` and any flag whose scope below is `Generation` or `Generation + semantic`.
 
@@ -324,9 +320,9 @@ The most commonly adjusted flags fall into three groups: common flags, semantic 
 
 
 
-## 8. Visualization
+## 7. Visualization
 
-### 8.1 Point-cloud visualization with `viser`
+### 7.1 Point-cloud visualization with `viser`
 
 Use `vis_viser.py` to inspect the saved `pts3d_*.npy` point-cloud outputs interactively:
 
@@ -340,7 +336,7 @@ You can point `--input_folder` either to the output root or directly to a single
 - `render_gen` for generated-view output
 - `render_recon_gen` for the combined output
 
-### 8.2 Voxel visualization with `mayavi`
+### 7.2 Voxel visualization with `mayavi`
 
 `vis_voxel.py` renders voxel predictions to image files. Install `mayavi` separately if you want to use this path:
 
@@ -351,7 +347,7 @@ python vis_voxel.py --input_root ./demo_data/output --dataset nuscenes
 
 Helpful notes:
 
-- The script writes rendered images to `./output` by default
+- The script writes rendered images to `./demo_data/output_vis` by default
 - If the requested `--prediction_key` is missing, it automatically falls back to the best available `render*` grid
 - Use `--dataset kitti` for KITTI-style scenes and `--dataset nuscenes` for nuScenes-style surround-view scenes
 - Add `--save_input_images` if you also want stacked input RGB images next to the voxel render
@@ -359,12 +355,12 @@ Helpful notes:
 
 
 
-## 9. Evaluation
+## 8. Evaluation
 
 This section covers the end-to-end evaluation workflow for KITTI and nuScenes using the provided shell and SLURM wrappers.
 
 
-### 9.1 Download evaluation datasets
+### 8.1 Download evaluation datasets
 #### KITTI
 
 Download the following assets:
@@ -421,7 +417,7 @@ $PROJECT/data/nuscenes/
 ```
 
 
-### 9.2 Prepare output and dataset roots
+### 8.2 Prepare output and dataset roots
 
 1. Set `PROJECT` and `SCRATCH`, then create the evaluation directories:
 
@@ -477,10 +473,10 @@ $PROJECT/data/nuscenes/
 
 
 
-### 9.3 Local shell workflow
+### 8.3 Local shell workflow
 
 > [!CAUTION] 
-> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [9.4 SLURM](#94-slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
+> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [8.4 SLURM](#84-slurm) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
 
 > [!NOTE]
 > To maximize performance, some presets sample novel-view densely and therefore generate roughly 150 to 180 views. You can reduce runtime by lowering `-vpi` (the number of generated views per reconstruction view). In general, the total number of novel views is `n_recon x args.vpi x (3 if args.rot > 0 else 1)`.
@@ -602,7 +598,7 @@ USE_MAJORITY_POOLING=1 POOLING_MODE=unified EXP_LIST=metric_occany_plus EXP_ID=5
 ```
 
 
-### 9.4 SLURM
+### 8.4 SLURM
 
 Some extraction presets can generate up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script therefore runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`). 
 
@@ -698,6 +694,369 @@ mIoU: 9.45, mIoU^{sc}: 12.22
 sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=occany_plus,EXP_ID=5,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=metric_occany_plus,EXP_ID=5,USE_MAJORITY_POOLING=1,POOLING_MODE=unified slurm/compute_metric.slurm
 ```
 
+
+## 9. Training
+
+This repository ships public SLURM wrappers for the two-stage training pipelines:
+
+- `slurm/train_occany.slurm` for **OccAny** (Must3R + SAM2)
+- `slurm/train_occany_plus.slurm` for **OccAny+** (Depth Anything 3 + SAM3)
+
+All public training SLURM scripts in this repository have been tested on 16 A100 40G GPUs across 2 nodes.
+
+Both wrappers use the same array-task mapping:
+
+- `0` = reconstruction stage
+- `1` = generation stage
+
+The shell entrypoints under `sh/` expect the processed training datasets referenced in those files to already exist under `$SCRATCH/data/...`. If your processed dataset roots live elsewhere, update the paths in the corresponding `sh/train_*.sh` file before launching training.
+
+### 9.1 Common setup
+
+All commands in this section assume your current working directory is the repository root. From there, define the output roots used by the training wrappers:
+
+```bash
+export PROJECT=$PWD
+export SCRATCH=${SCRATCH:-$PROJECT}
+```
+
+The SLURM wrappers already activate the `occany` conda environment and write scheduler logs to `slurm/output/`.
+
+If you want to launch training directly from an interactive shell without SLURM, activate the environment yourself and force single-node / single-GPU mode so the helper scripts use plain `python` instead of `srun python`:
+
+```bash
+conda activate occany
+export NUM_NODE=1
+export NUM_GPU_PER_NODE=1
+```
+
+You can also override script defaults inline, for example:
+
+```bash
+BATCH_SIZE=1 N_WORKERS=4 bash sh/train_occany_recon.sh
+```
+
+Training recipe note: the original **OccAny** training was run in three stages: **sequence-only reconstruction**, **sequence-only generation**, and **sequence + surround reconstruction**. In this public codebase, we simplify the recipe to two stages: **sequence + surround reconstruction** followed by **sequence + surround generation**. This simplified two-stage recipe is also the one used for **OccAny+**.
+
+### 9.2 Prepare training datasets
+
+For a compact overview of the scripts under `dataset_setup/`, see [`dataset_setup/README.md`](dataset_setup/README.md). Dataset-specific caveats for DDAD and PandaSet live in [`dataset_setup/ddad/README.md`](dataset_setup/ddad/README.md) and [`dataset_setup/pandaset/README.md`](dataset_setup/pandaset/README.md).
+
+The training shell entrypoints expect the processed datasets below to exist under `$SCRATCH/data/`:
+
+```text
+$SCRATCH/data/
+├── ddad_processed/
+├── once_processed/
+├── pandaset_processed/
+├── vkitti_processed/
+└── waymo_processed/
+```
+
+The commands below keep the raw archives under `$PROJECT/data/raw/` and write the preprocessed training samples to `$SCRATCH/data/`, which matches the default roots used by `sh/train_occany*.sh`.
+
+#### 9.2.1 Common roots
+
+```bash
+export PROJECT=$PWD
+export SCRATCH=${SCRATCH:-$PROJECT}
+
+mkdir -p \
+  "$PROJECT/data/raw" \
+  "$SCRATCH/data/waymo_processed" \
+  "$SCRATCH/data/vkitti_processed" \
+  "$SCRATCH/data/ddad_processed" \
+  "$SCRATCH/data/pandaset_processed" \
+  "$SCRATCH/data/once_processed"
+```
+
+If you prefer to keep the raw datasets elsewhere, pass the explicit raw root to each preprocessing command instead of relying on the defaults.
+
+#### 9.2.2 Waymo Open Dataset
+
+1. Accept the Waymo Open Dataset license, then download the **Perception v1.4.2** `training/*.tfrecord` files into:
+
+   ```text
+   $PROJECT/data/raw/waymo/training/
+   ```
+
+   You can use `dataset_setup/waymo/download_waymo.sh` as a starting point.
+
+2. Install the extra dependency required by `dataset_setup/waymo/preprocess_waymo.py`:
+
+   ```bash
+   pip install gcsfs waymo-open-dataset-tf-2-12-0==1.6.4 --no-cache-dir
+   ```
+
+3. Preprocess the dataset:
+
+   ```bash
+   python dataset_setup/waymo/preprocess_waymo.py \
+     --waymo_dir "$PROJECT/data/raw/waymo/training" \
+     --output_dir "$SCRATCH/data/waymo_processed" \
+     --workers 16
+   ```
+
+#### 9.2.3 VKITTI2
+
+1. Download and extract **Virtual KITTI 2** so that the raw root looks like:
+
+   ```text
+   $PROJECT/data/raw/vkitti/VirtualKitti2/
+   ├── Scene01/
+   ├── Scene02/
+   └── ...
+   ```
+
+2. Preprocess the dataset:
+
+   ```bash
+   python dataset_setup/vkitti/preprocess_vkitti.py \
+     --vkitti_dir "$PROJECT/data/raw/vkitti/VirtualKitti2" \
+     --output_dir "$SCRATCH/data/vkitti_processed" \
+     --workers 16
+   ```
+
+#### 9.2.4 DDAD
+
+1. Download and extract DDAD to a raw root such as:
+
+   ```text
+   $PROJECT/data/raw/DDAD/
+   ```
+
+2. Install TRI-ML's `dgp` package and the protobuf version expected by `dataset_setup/ddad/preprocess.py`. See [`dataset_setup/ddad/README.md`](dataset_setup/ddad/README.md) for environment-specific installation notes and the protobuf pin used here.
+
+3. Preprocess the dataset:
+
+   ```bash
+   python dataset_setup/ddad/preprocess.py \
+     --ddad_root "$PROJECT/data/raw/DDAD" \
+     --preprocessed_root "$SCRATCH/data/ddad_processed" \
+     --n_workers 16
+   ```
+
+#### 9.2.5 ONCE
+
+1. Download the ONCE archives from the official source and place the tar files under:
+
+   ```text
+   $PROJECT/data/raw/once_archives/
+   ```
+
+2. Extract them so that the raw dataset root becomes:
+
+   ```text
+   $PROJECT/data/raw/ONCE/
+   └── data/
+       ├── <sequence_id>/
+       ├── train_split.txt
+       ├── val_split.txt
+       └── ...
+   ```
+
+   The helper `dataset_setup/once/extract.sh` shows one parallel extraction approach, but it contains site-specific paths, so update its `SOURCE` / `DEST` variables before using it.
+
+3. Preprocess the dataset:
+
+   ```bash
+   python dataset_setup/once/preprocess.py \
+     --root "$PROJECT/data/raw/ONCE" \
+     --preprocessed_root "$SCRATCH/data/once_processed" \
+     --n_workers 16
+   ```
+
+#### 9.2.6 PandaSet
+
+1. Download and extract PandaSet to a raw root such as:
+
+```text
+$PROJECT/data/raw/PandaSet/
+```
+
+2. Install the `pandaset-devkit` dependency. [`dataset_setup/pandaset/README.md`](dataset_setup/pandaset/README.md) includes a concrete environment example and notes about the optional pair-generation helper.
+
+3. Preprocess the dataset:
+
+   ```bash
+   python dataset_setup/pandaset/preprocess.py \
+     --root "$PROJECT/data/raw/PandaSet" \
+     --save_dir "$SCRATCH/data/pandaset_processed"
+   ```
+
+The public training scripts expect the processed output under:
+
+```text
+$SCRATCH/data/pandaset_processed/
+```
+
+`dataset_setup/pandaset/make_pairs.py` is optional and only applies if you maintain a JPEG-exported processed tree. The current `preprocess.py` writes `.npz` samples.
+
+#### 9.2.7 Create training sequences
+
+After preprocessing, generate the training sequence pickle files consumed by `WaymoSeqMultiView`, `VKittiSeqMultiView`, `DDADSeqMultiView`, `PandasetSeqMultiView`, and `OnceSeqMultiView`.
+
+The intended batch entrypoint is:
+
+```bash
+sbatch slurm/make_seqs.slurm
+```
+
+Important notes:
+
+- `slurm/make_seqs.slurm` launches temporal sequence generation for `waymo`, `once`, `ddad`, `pandaset`, `vkitti`, and `kitti`, plus surround sequence generation for the multi-camera datasets `waymo`, `once`, `ddad`, and `pandaset`.
+- `sh/make_seqs.sh` calls the bundled `dataset_setup/base_make_seq.py`.
+- With the public scripts as shipped, the expected sequence filenames are:
+  - `seq_exact_len_sub5_stride9_all.pkl` for Waymo, DDAD, PandaSet, and ONCE temporal training
+  - `seq_exact_len_sub5_stride9.pkl` for VKITTI and KITTI temporal runs
+  - `seq_surround_all.pkl` for Waymo, DDAD, PandaSet, and ONCE surround training
+- Single-camera datasets (`kitti`, `vkitti`) skip surround mode by design.
+
+Once the processed roots and sequence pickle files are in place, the default training wrappers can read them directly from `$SCRATCH/data/...` without any further path edits.
+
+### 9.3 OccAny (Must3R + SAM2)
+
+#### 9.3.1 Download the Must3R base checkpoint
+
+OccAny reconstruction and generation both rely on the Must3R base weights referenced by `sh/train_occany_recon.sh` and `sh/train_occany_gen.sh`:
+
+```bash
+mkdir -p checkpoints
+curl -L https://download.europe.naverlabs.com/ComputerVision/MUSt3R/MUSt3R_512.pth \
+  -o checkpoints/MUSt3R_512.pth
+```
+
+#### 9.3.2 Run the reconstruction stage
+
+`TRAIN_TASK_ID=0` dispatches `slurm/train_occany.slurm` to `sh/train_occany_recon.sh`:
+
+```bash
+sbatch --array=0 slurm/train_occany.slurm
+```
+
+Without SLURM, run the same stage directly with:
+
+```bash
+bash sh/train_occany_recon.sh
+```
+
+With the default script values, checkpoints and TensorBoard logs are written to:
+
+```bash
+$PROJECT/tb_log_occany/occany_recon
+```
+
+For **OccAny**, the final checkpoint for both reconstruction and generation is the **last checkpoint**, i.e. `checkpoint-last.pth`.
+
+#### 9.3.3 Run the generation stage
+
+Before launching generation, point the helper script at the reconstruction checkpoint you just trained. By default it uses:
+
+```bash
+checkpoints/occany_recon.pth
+```
+
+In practice, `checkpoints/occany_recon.pth` should be a copy or symlink to that last reconstruction checkpoint.
+
+If you want a different path, override `OCCANY_RECON_CKPT` inline:
+
+```bash
+OCCANY_RECON_CKPT=/path/to/occany_recon.pth bash sh/train_occany_gen.sh
+```
+
+Keep the Must3R base checkpoint available at `checkpoints/MUSt3R_512.pth`, or override `MUST3R_PRETRAINED_CKPT`. The generation stage still loads the base Must3R checkpoint in addition to `--pretrained_occany`.
+
+Then launch the generation stage with:
+
+```bash
+sbatch --array=1 slurm/train_occany.slurm
+```
+
+Without SLURM, run the same stage directly with:
+
+```bash
+BATCH_SIZE=2 bash sh/train_occany_gen.sh
+```
+
+With the default script values, generation outputs are written to:
+
+```bash
+$PROJECT/tb_log_occany/occany_gen
+```
+
+### 9.4 OccAny+ (Depth Anything 3 + SAM3)
+
+#### 9.4.1 Run the reconstruction stage
+
+`TRAIN_TASK_ID=0` dispatches `slurm/train_occany_plus.slurm` to `sh/train_occany_plus_recon.sh`:
+
+```bash
+sbatch --array=0 slurm/train_occany_plus.slurm
+```
+
+Without SLURM, run the same stage directly with:
+
+```bash
+bash sh/train_occany_plus_recon.sh
+```
+
+With the default script values, checkpoints and TensorBoard logs are written to:
+
+```bash
+$PROJECT/tb_log_occany/occany_plus_recon
+```
+
+For **OccAny+**, we use the checkpoint at **epoch 50** as the final checkpoint for both reconstruction comparison and generation handoff for comparison convenience: all OccAny+ experiments run past 50 epochs within about **2 days on 16 A100 40GB GPUs**.
+
+#### 9.4.2 Run the generation stage
+
+Before launching generation, point the helper script at the reconstruction checkpoint you just trained. By default it uses:
+
+```bash
+checkpoints/occany_plus_recon.pth
+```
+
+In practice, `checkpoints/occany_plus_recon.pth` should usually be a copy or symlink of `checkpoint-50.pth`.
+
+If you want a different path, override `OCCANY_PLUS_RECON_CKPT` inline:
+
+```bash
+OCCANY_PLUS_RECON_CKPT=/path/to/occany_plus_recon.pth bash sh/train_occany_plus_gen.sh
+```
+
+Then launch the generation stage with:
+
+```bash
+sbatch --array=1 slurm/train_occany_plus.slurm
+```
+
+Without SLURM, run the same stage directly with:
+
+```bash
+bash sh/train_occany_plus_gen.sh
+```
+
+With the default script values, generation outputs are written to:
+
+```bash
+$PROJECT/tb_log_occany/occany_plus_gen
+```
+
+### 9.5 Training outputs
+
+For both training backends, `--output_dir` is the canonical experiment directory. It stores:
+
+- TensorBoard event files
+- `log.txt`
+- `checkpoint-last.pth`
+- `checkpoint-final.pth`
+- periodic `checkpoint-<epoch>.pth` snapshots
+
+To inspect an experiment with TensorBoard, point `--logdir` at the same `--output_dir` used for training. For example:
+
+```bash
+tensorboard --logdir "$PROJECT/tb_log_occany/occany_recon"
+```
 
 ## 10. License
 

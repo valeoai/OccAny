@@ -46,3 +46,4 @@ supervision
 pyyaml
 scipy
 filelock
+idr-torch

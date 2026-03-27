@@ -244,8 +244,6 @@ def get_args_parser():
     parser.add_argument('--gen_conf_thres', type=float, default=6.0,
                         help='Generation confidence threshold.')
     
-    # parser.add_argument('--class_prompt_mode', type=str, choices=['original', 'combined'], default='original',
-    #                     help='Class and text prompt mode: original (20 classes) or combined (10 classes)')
 
     return parser
 
@@ -333,11 +331,11 @@ if __name__ == '__main__':
         from occany.model.model_must3r import Must3r, Dust3rEncoder, RaymapEncoderDiT, Must3rDecoder  # noqa: F401
         from occany.model.must3r_blocks.head import ActivationType  # noqa: F401
         from occany.must3r_inference import inference_occany_gen
-        weights_path = REPO_ROOT / "checkpoints" / "occany_must3r.pth"
+        weights_path = REPO_ROOT / "checkpoints" / "occany.pth"
         if not weights_path.is_file():
             raise FileNotFoundError(
                 f"OccAny Must3R checkpoint not found: {weights_path}. "
-                "Expected the merged checkpoint at checkpoints/occany_must3r.pth."
+                "Expected the merged checkpoint at checkpoints/occany.pth."
             )
         encoder = Dust3rEncoder()
         checkpoint = torch.load(weights_path, map_location='cpu', weights_only=False)
@@ -385,8 +383,8 @@ if __name__ == '__main__':
         from occany.da3_inference import inference_occany_da3, inference_occany_da3_gen
 
         
-        gen_weights = REPO_ROOT / "checkpoints" / "occany_da3_gen.pth"
-        recon_weights = REPO_ROOT / "checkpoints" / "occany_da3_recon.pth"
+        gen_weights = REPO_ROOT / "checkpoints" / "occany_plus_gen.pth"
+        recon_weights = REPO_ROOT / "checkpoints" / "occany_plus_recon.pth"
         print("[INFO] Preparing DA3 model(s)")
         da3_model_input_size = max(output_resolution)
         da3_model_gen, da3_model_recon, checkpoint_args = setup_da3_models(
@@ -426,7 +424,7 @@ if __name__ == '__main__':
     elif args.model == "occany_da3":
         total_params = sum(p.numel() for p in da3_model_gen.parameters())
         trainable_params = sum(p.numel() for p in da3_model_gen.parameters() if p.requires_grad)
-        primary_model_label = "occany_da3_gen" if args.gen else "occany_da3_recon"
+        primary_model_label = "occany_plus_gen" if args.gen else "occany_plus_recon"
         print(
             f"Model '{primary_model_label}' - total parameters: {total_params:,}, "
             f"trainable parameters: {trainable_params:,}"
@@ -437,7 +435,7 @@ if __name__ == '__main__':
                 p.numel() for p in da3_model_recon.parameters() if p.requires_grad
             )
             print(
-                f"Model 'occany_da3_recon' - total parameters: {recon_total_params:,}, "
+                f"Model 'occany_plus_recon' - total parameters: {recon_total_params:,}, "
                 f"trainable parameters: {recon_trainable_params:,}"
             )
 
@@ -679,19 +677,13 @@ if __name__ == '__main__':
             
 
 
-        # res_0 = img_out_0
         res = img_out
         
-        # gt_views = batch_result['gt_img']
-        # imgs = batch_result['img_input']
         imgs = [v['img'] for v in recon_views]
         imgs = torch.stack(imgs, dim=1)
         if model_family == "da3":
             imgs = denormalize_da3_imgs_to_minus1_1(imgs)
 
-        # pts3d_0 = res_0[args.key_to_get_pts3d]
-        # pts3d_local_0 = res_0['pts3d_local']
-        # conf_0 = res_0['conf']
         
         recon_semantic_2ds = None
         gen_semantic_2ds = None

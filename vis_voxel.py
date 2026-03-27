@@ -189,9 +189,6 @@ def render_voxel_grid(
 
         if color_by_height:
             height_values = occupied_coords[:, 2].astype(np.float32, copy=False)
-            # height_min = float(height_values.min())
-            # height_max = float(height_values.max())
-            # breakpoint()
             height_min = 0.1
             height_max = 4.4
             if np.isclose(height_min, height_max):
