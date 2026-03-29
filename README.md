@@ -45,6 +45,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 - [⚙️ Key Inference Flags](#%EF%B8%8F-key-inference-flags)
 - [👁️ Visualization](#%EF%B8%8F-visualization)
 - [📊 Evaluation](#-evaluation)
+- [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation)
 - [🏋️ Training](#%EF%B8%8F-training)
 - [📄 License](#-license)
 - [🙏 Acknowledgments](#-acknowledgments)
@@ -181,6 +182,7 @@ Expected files under `checkpoints/`:
 - `occany_plus_recon.pth`
 - `occany.pth`
 - `occany_recon.pth`
+- `occany_plus_recon_1B.pth`
 - `groundingdino_swinb_cogcoor.pth`
 - `sam2.1_hiera_large.pt`
 
@@ -541,6 +543,53 @@ sbatch --dependency=afterany:$(sbatch --parsable \
 | nuScenes surround distill sem. | Tab. 7 | `3` | mIoU 7.20 · mIoU*ˢᶜ* 11.51 | `unified` |
 | KITTI 5-frame pretrained sem. | Tab. 7 | `4` | mIoU 8.03 · mIoU*ˢᶜ* 13.17 | `unified` |
 | nuScenes surround pretrained sem. | Tab. 7 | `5` | mIoU 9.45 · mIoU*ˢᶜ* 12.22 | `unified` |
+
+## 🚗 Ego Trajectory Evaluation
+
+This section covers ego-trajectory evaluation on NuScenes Vista validation sequences using `infer_trajectory.py` and the provided shell / SLURM wrappers. The reported metric is ADE (Average Displacement Error).
+
+### SLURM Workflow
+
+Submit the provided array job to evaluate both released model sizes:
+
+```bash
+sbatch slurm/eval_trajectory.slurm
+```
+
+The bundled wrapper maps the array tasks as follows:
+
+- `SLURM_ARRAY_TASK_ID=0` → `./checkpoints/occany_plus_recon.pth` (OccAny 0.35B)
+- `SLURM_ARRAY_TASK_ID=1` → `./checkpoints/occany_plus_recon_1B.pth` (OccAny 1.1B)
+
+### Local Shell Workflow
+
+Run the same evaluation locally without SLURM by setting the checkpoint explicitly.
+
+#### OccAny 0.35B
+
+```bash
+OCCANY_PLUS_RECON_CKPT=./checkpoints/occany_plus_recon.pth \
+  bash sh/infer_occany_nuscenes_traj.sh
+```
+
+#### OccAny 1.1B
+
+```bash
+OCCANY_PLUS_RECON_CKPT=./checkpoints/occany_plus_recon_1B.pth \
+  bash sh/infer_occany_nuscenes_traj.sh
+```
+
+Outputs are written to `./outputs/<ckpt_name>_nuscenes_traj/`, including `ade_metrics.json` and trajectory plots.
+
+### ADE Results
+
+| Method | ADE (m) ↓ |
+|:---|---:|
+| GEM pseudo traj | 1.63 |
+| DA3 0.35B + DA3 metric 0.35B | 2.44 |
+| DA3 1.1B + DA3 metric 0.35B | 1.12 |
+| OccAny 0.35B | 1.86 |
+| **OccAny 1.1B** | **0.90** |
 
 ## 🏋️ Training
 
@@ -926,4 +975,3 @@ If you find this work or code useful, please cite the paper and consider starrin
   year={2026}
 }
 ```
-

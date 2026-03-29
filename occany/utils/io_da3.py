@@ -61,6 +61,31 @@ def load_model(args, chkpt_path, model, optimizer, loss_scaler):
             print("No optimizer state found in checkpoint. Starting with fresh optimizer state.")
 
 
+def _resolve_da3_model_name(hf_name: str) -> str:
+    """Map a HuggingFace DA3 model name to the local config name.
+
+    Examples:
+        "depth-anything/DA3-LARGE"       -> "da3-large"
+        "depth-anything/DA3-LARGE-1.1"   -> "da3-large"
+        "depth-anything/DA3-GIANT-1.1"   -> "da3-giant"
+        "da3-large"                      -> "da3-large"  (passthrough)
+    """
+    name = hf_name.strip()
+    # Already a local config name
+    if name.startswith("da3-"):
+        return name
+    # HF format: "depth-anything/DA3-GIANT-1.1" -> extract "DA3-GIANT"
+    basename = name.split("/")[-1]
+    # Remove trailing version suffixes like "-1.1"
+    parts = basename.split("-")
+    # Reconstruct: take "DA3" and the size part (LARGE, GIANT, etc.)
+    if len(parts) >= 2 and parts[0].upper() == "DA3":
+        size = parts[1].lower()
+        return f"da3-{size}"
+    # For metric models: "DA3METRIC-LARGE" -> "da3metric-large"
+    return basename.lower()
+
+
 def load_da3_model_from_checkpoint(
     weights_path: str,
     output_resolution: Tuple[int, int],
@@ -85,10 +110,14 @@ def load_da3_model_from_checkpoint(
         projection_features = getattr(checkpoint_args, "projection_features", "pts3d_local,pts3d,rgb,conf,sam3")
         print(f"[INFO] Using checkpoint DA3 projection features: {projection_features}")
 
+    # Determine backbone architecture from checkpoint args (e.g. "depth-anything/DA3-GIANT-1.1")
+    hf_model_name = getattr(checkpoint_args, "da3_model_name", "depth-anything/DA3-LARGE")
+    da3_config_name = _resolve_da3_model_name(hf_model_name)
+
     model_input_size = output_resolution[0]
-    print(f"[INFO] Building DA3 model locally (img_size={model_input_size})")
+    print(f"[INFO] Building DA3 model locally (config={da3_config_name}, img_size={model_input_size})")
     model = DA3Wrapper(
-        model_name="da3-large",
+        model_name=da3_config_name,
         img_size=model_input_size,
         projection_features=projection_features,
     ).to(device)
