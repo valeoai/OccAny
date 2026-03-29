@@ -37,8 +37,13 @@ OccAny provides pretrained checkpoints, inference scripts, training/evaluation p
 
 The repository also includes sample RGB scenes in `demo_data/input`, pretrained weights in `checkpoints/`, and viewers for both point-cloud and voxel-grid outputs.
 
+## 📰 News
+
+- 29/03/2026: Added the **OccAny 1.1B reconstruction model**, fine-tuned from **DA3 1.1B**; see [📦 Checkpoints](#-checkpoints). Also added **ego trajectory evaluation on nuScenes**; see [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation).
+
 ## 📑 Table of Contents
 
+- [📰 News](#-news)
 - [🔧 Installation](#-installation)
 - [📦 Checkpoints](#-checkpoints)
 - [🚀 Quick Start](#-quick-start)
