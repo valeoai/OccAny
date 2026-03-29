@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/a3abde5b-c170-4b5d-818c-262b0df2546f
 
 ---
 
-OccAny provides demo inputs, pretrained checkpoints, inference scripts, evaluation utilities, training dataset preparation and training scripts, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This public release includes two model variants:
+OccAny provides pretrained checkpoints, inference scripts, training/evaluation pipelines, data preparation, and visualization tools for urban 3D occupancy under unconstrained camera inputs. This repo includes two model variants:
 
 - **OccAny**, based on Must3R + SAM2
 - **OccAny+**, based on Depth Anything 3 + SAM3
@@ -53,7 +53,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 
 ## 🔧 Installation
 
-The commands below create the environment used for the public release and keep all required third-party dependencies local to this repository.
+The commands below create the environment and keep all required third-party dependencies local to this repository.
 
 ### Clone the Repository
 
@@ -78,7 +78,7 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https
 pip install xformers==0.0.29.post2
 ```
 
-### Install Shared Python Dependencies
+### Install Python Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -93,7 +93,7 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 pip install torch-scatter --no-cache-dir --no-build-isolation
 ```
 
-### Vendored Third-Party Code
+### Third-Party Code
 
 OccAny relies on the vendored copies bundled in `third_party/`:
 
@@ -109,7 +109,6 @@ OccAny relies on the vendored copies bundled in `third_party/`:
 export PYTHONPATH="$PWD/third_party:$PWD/third_party/dust3r:$PWD/third_party/croco/models/curope:$PWD/third_party/Grounded-SAM-2:$PWD/third_party/Grounded-SAM-2/grounding_dino:$PWD/third_party/sam3:$PWD/third_party/Depth-Anything-3/src:$PYTHONPATH"
 ```
 
-Avoid adding `third_party/sam2` on top of this unless you explicitly need the standalone SAM2 copy, because it exposes the same top-level module name as `third_party/Grounded-SAM-2`.
 
 ### Compile CroCo's `curope` Extension
 
@@ -246,13 +245,13 @@ Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. 
 
 The `pts3d_*.npy` files are what `vis_viser.py` reads, while `voxel_predictions.pkl` is what `vis_voxel.py` and `compute_metrics_from_saved_voxels.py` consume.
 
-`inference.py` currently uses an urban voxel grid tuned for the included demo scenes:
+`inference.py` currently uses an urban voxel grid selected for the included demo scenes:
 
 - `voxel_size = 0.4`
 - `occ_size = [200, 200, 24]`
 - `voxel_origin = [-40.0, -40.0, -3.6]`
 
-This `200 x 200 x 24` grid is only the default for direct demo inference. The evaluation pipeline uses its own dataset-specific layouts, so only edit these constants when you want the standalone demo outputs to follow another convention. Two common evaluation presets are:
+This `200 x 200 x 24` grid is only the default for demo inference. The evaluation pipeline uses its own dataset-specific layouts, so only edit these constants when you want the standalone demo outputs to follow another convention. Two common evaluation presets are:
 
 **KITTI**
 
@@ -511,7 +510,7 @@ Each example below submits the extraction job first and then chains the metric j
 ```bash
 sbatch --dependency=afterany:$(sbatch --parsable \
     --export=EXP_LIST=<exp_list>,EXP_ID=<id>,WORLD=20 slurm/eval_occany.slurm) \
-  --export=EXP_LIST=<metric_exp_list>,EXP_ID=<id>,USE_MAJORITY_POOLING=1,POOLING_MODE=<mode> \
+    --export=EXP_LIST=<metric_exp_list>,EXP_ID=<id>,USE_MAJORITY_POOLING=1,POOLING_MODE=<mode> \
   slurm/compute_metric.slurm
 ```
 
@@ -598,7 +597,7 @@ This repository ships public SLURM wrappers for the two-stage training pipelines
 - `slurm/train_occany.slurm` for **OccAny** (Must3R + SAM2)
 - `slurm/train_occany_plus.slurm` for **OccAny+** (Depth Anything 3 + SAM3)
 
-All public training SLURM scripts in this repository have been tested on 16 A100 40G GPUs across 2 nodes.
+All training SLURM scripts in this repository have been tested on 16 A100 40G GPUs across 2 nodes.
 
 Both wrappers use the same array-task mapping:
 
@@ -780,7 +779,7 @@ $PROJECT/data/raw/PandaSet/
      --save_dir "$SCRATCH/data/pandaset_processed"
    ```
 
-The public training scripts expect the processed output under:
+The training scripts expect the processed output under:
 
 ```text
 $SCRATCH/data/pandaset_processed/
@@ -802,7 +801,7 @@ Important notes:
 
 - `slurm/make_seqs.slurm` launches temporal sequence generation for `waymo`, `once`, `ddad`, `pandaset`, `vkitti`, and `kitti`, plus surround sequence generation for the multi-camera datasets `waymo`, `once`, `ddad`, and `pandaset`.
 - `sh/make_seqs.sh` calls the bundled `dataset_setup/base_make_seq.py`.
-- With the public scripts as shipped, the expected sequence filenames are:
+- With the scripts as shipped, the expected sequence filenames are:
   - `seq_exact_len_sub5_stride9_all.pkl` for Waymo, DDAD, PandaSet, and ONCE temporal training
   - `seq_exact_len_sub5_stride9.pkl` for VKITTI and KITTI temporal runs
   - `seq_surround_all.pkl` for Waymo, DDAD, PandaSet, and ONCE surround training
