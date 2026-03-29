@@ -60,8 +60,8 @@ def get_args_parser():
     parser.add_argument('--finetune_dual_dpt_only', default=False, action='store_true', help="Only finetune the DualDPT head, freeze backbone")
 
     parser.add_argument('--fine_tune_layers', type=str, default=None,
-                        help="Comma-separated list of layer indices (0-23) to fine-tune while freezing the rest of the backbone. "
-                            "Example: '20,21,22,23'.")
+                        help="Comma-separated list of layer indices to fine-tune while freezing the rest of the backbone. "
+                            "Example: '20,21,22,23' for DA3-LARGE or '34,35,36,37,38,39' for DA3-GIANT.")
     parser.add_argument('--freeze_head', default=False, action='store_true', help="Freeze the DualDPT head (Depth head)")
 
     # dataset

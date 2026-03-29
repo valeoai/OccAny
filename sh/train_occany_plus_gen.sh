@@ -7,7 +7,7 @@ occany_prepare_train_env "$PWD"
 export EXP_NAME="occany_plus_gen"
 : ${OCCANY_PLUS_RECON_CKPT:="checkpoints/occany_plus_recon.pth"}
 
-: ${BATCH_SIZE:=4}
+: ${BATCH_SIZE:=2}
 : ${EFFECTIVE_BATCH_SIZE:=64}
 : ${N_WORKERS:=12}
 

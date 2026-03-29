@@ -39,7 +39,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 
 ## 📰 News
 
-- 29/03/2026: Added the **OccAny 1.1B reconstruction model**, fine-tuned from **DA3 1.1B**; see [📦 Checkpoints](#-checkpoints). Also added **ego trajectory evaluation on nuScenes**; see [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation).
+- 29/03/2026: Added a bonus training recipe for the **OccAny 1.1B reconstruction model**, fine-tuned from **DA3 1.1B**; see [🏋️ Training](#%EF%B8%8F-training) and [📦 Checkpoints](#-checkpoints). Also added **ego trajectory evaluation on nuScenes**; see [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation).
 
 ## 📑 Table of Contents
 
@@ -513,10 +513,7 @@ Each example below submits the extraction job first and then chains the metric j
 **Command template:**
 
 ```bash
-sbatch --dependency=afterany:$(sbatch --parsable \
-    --export=EXP_LIST=<exp_list>,EXP_ID=<id>,WORLD=20 slurm/eval_occany.slurm) \
-    --export=EXP_LIST=<metric_exp_list>,EXP_ID=<id>,USE_MAJORITY_POOLING=1,POOLING_MODE=<mode> \
-  slurm/compute_metric.slurm
+sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=<exp_list>,EXP_ID=<id>,WORLD=20 slurm/eval_occany.slurm) --export=EXP_LIST=<metric_exp_list>,EXP_ID=<id>,USE_MAJORITY_POOLING=1,POOLING_MODE=<mode> slurm/compute_metric.slurm
 ```
 
 #### OccAny
@@ -907,6 +904,28 @@ $PROJECT/tb_log_occany/occany_plus_recon
 ```
 
 For **OccAny+**, we use the checkpoint at **epoch 50** as the final checkpoint for both reconstruction comparison and generation handoff for comparison convenience: all OccAny+ experiments run past 50 epochs within about **2 days on 16 A100 40GB GPUs**.
+
+#### Bonus: Train the OccAny 1.1B Reconstruction Model
+
+The public repository also ships `sh/train_occany_plus_recon_1B.sh`, which switches the reconstruction stage to the **DA3-Giant 1.1B** backbone.
+
+For SLURM, use the dedicated wrapper:
+
+```bash
+sbatch slurm/train_occany_plus_recon_1B.slurm
+```
+
+Without SLURM, run the 1.1B reconstruction stage directly with:
+
+```bash
+bash sh/train_occany_plus_recon_1B.sh
+```
+
+With the default script values, checkpoints and TensorBoard logs are written to:
+
+```bash
+$PROJECT/tb_log_occany/occany_plus_recon_1B
+```
 
 #### Run the Generation Stage
 

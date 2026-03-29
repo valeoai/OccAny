@@ -4,7 +4,7 @@ set -euo pipefail
 source sh/train_common.sh
 occany_prepare_train_env "$PWD"
 
-export EXP_NAME="occany_plus_recon"
+export EXP_NAME="occany_plus_recon_1B"
 
 
 : ${BATCH_SIZE:=2}
@@ -96,9 +96,9 @@ $CMD \
     --save_freq=3 --keep_freq=5 --eval_freq=1  --num_workers=$N_WORKERS --multiview \
     --amp bf16 --fixed_eval_set --loss_enc_feat  \
     --output_dir="$PROJECT/tb_log_occany/$EXP_NAME" \
-    --training_objective pointmap_depth_ray --fine_tune_layers 18,19,20,21,22,23 \
+    --training_objective pointmap_depth_ray --fine_tune_layers 34,35,36,37,38,39 \
     --sam3_proj_lr_mult 10.0 \
-    --da3_model_name depth-anything/DA3-LARGE-1.1 \
+    --da3_model_name depth-anything/DA3-GIANT-1.1 \
     --loss_type L1 --pointmap_lambda_c 1.0 --depth_lambda_c 0.0 --raymap_lambda_c 1.0 \
     --distill_model SAM3 --distill_criterion "DistillLoss(nn.L1Loss(), use_conf=False)" \
     --aux_branch_layers 6 --scale_inv_depth_loss --lambda_scale_inv_depth 1.0 \

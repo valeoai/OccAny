@@ -8,7 +8,7 @@ export EXP_NAME="occany_gen"
 : ${MUST3R_PRETRAINED_CKPT:="checkpoints/MUSt3R_512.pth"}
 : ${OCCANY_RECON_CKPT:="checkpoints/occany_recon.pth"}
 
-: ${BATCH_SIZE:=4}
+: ${BATCH_SIZE:=2}
 : ${EFFECTIVE_BATCH_SIZE:=64}
 : ${N_WORKERS:=12}
 

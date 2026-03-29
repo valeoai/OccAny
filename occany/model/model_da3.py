@@ -53,12 +53,43 @@ class DA3Wrapper(DepthAnything3):
             del self.model.cam_dec
             self.model.cam_dec = None
 
+    def _get_backbone_wrapper(self):
+        """Return the DA3 DinoV2 wrapper, unwrapping PEFT when needed."""
+        backbone = self.model.backbone
+        if hasattr(backbone, 'base_model') and hasattr(backbone.base_model, 'model'):
+            backbone = backbone.base_model.model
+        return backbone
+
+    def _get_pretrained_backbone(self):
+        """Return the underlying DinoVisionTransformer instance."""
+        backbone = self._get_backbone_wrapper()
+        pretrained_backbone = getattr(backbone, 'pretrained', None)
+        if pretrained_backbone is None:
+            raise RuntimeError('DA3 backbone does not expose a pretrained DinoV2 backbone')
+        return pretrained_backbone
+
+    def _log_backbone_metadata(self, prefix: str) -> Dict[str, object]:
+        """Print active DA3 backbone metadata for easier debugging."""
+        metadata = self.get_backbone_metadata()
+        print(
+            f"{prefix}: name={metadata['name']}, token_dim={metadata['token_dim']}, "
+            f"feature_dim={metadata['feature_dim']}, out_layers={list(metadata['out_layers'])}, "
+            f"alt_start={metadata['alt_start']}, total_layers={metadata['total_layers']}"
+        )
+        return metadata
+
     def init_gen_encoders(self):
         """Initialize raymap encoder for generation mode."""
         device = self._get_model_device()
+        backbone_metadata = self._log_backbone_metadata('[INFO] Initializing generation encoder for backbone')
         self.gen_input_encoder = RaymapEncoderDA3(
-            img_size=(self.img_size, self.img_size), patch_size=14, embed_dim=1024,
-            depth=0, num_heads=16, projection_features=self.projection_features,
+            img_size=(self.img_size, self.img_size),
+            patch_size=14,
+            embed_dim=backbone_metadata['token_dim'],
+            output_embed_dim=backbone_metadata['token_dim'],
+            depth=0,
+            num_heads=backbone_metadata['num_heads'],
+            projection_features=self.projection_features,
         ).to(device)
         return self
 
@@ -70,50 +101,44 @@ class DA3Wrapper(DepthAnything3):
 
     def set_alt_start(self, alt_start: int):
         """Change alt_start for backbone (camera_token already exists)."""
-        self.model.backbone.pretrained.alt_start = alt_start
+        backbone = self._get_backbone_wrapper()
+        pretrained_backbone = self._get_pretrained_backbone()
+        backbone.alt_start = alt_start
+        pretrained_backbone.alt_start = alt_start
+        print(f"Set backbone alt_start to {alt_start}")
         return self
 
     def get_backbone_metadata(self) -> Dict[str, object]:
-        """Return backbone metadata used for logging/debugging in training."""
-        backbone = getattr(self.model, "backbone", None)
-        if backbone is None:
-            raise RuntimeError("Backbone is not initialized on this DA3 model.")
+        """Return runtime metadata for the currently loaded DA3 backbone."""
+        backbone = self._get_backbone_wrapper()
+        pretrained_backbone = self._get_pretrained_backbone()
 
-        pretrained = getattr(backbone, "pretrained", None)
-        if pretrained is None:
-            raise RuntimeError("DA3 backbone does not expose pretrained DinoV2 blocks.")
+        out_layers = tuple(int(layer_idx) for layer_idx in getattr(backbone, 'out_layers', ()))
+        if len(out_layers) == 0:
+            raise RuntimeError('DA3 backbone does not define out_layers')
 
-        out_layers = getattr(backbone, "out_layers", ())
-        if out_layers is None:
-            out_layers = ()
-        out_layers = tuple(int(x) for x in out_layers)
-
-        token_dim = getattr(pretrained, "embed_dim", None)
+        token_dim = getattr(pretrained_backbone, 'embed_dim', None)
         if token_dim is None:
-            raise RuntimeError("DA3 pretrained backbone does not define embed_dim.")
+            raise RuntimeError('DA3 pretrained backbone does not define embed_dim')
 
-        cat_token = getattr(pretrained, "cat_token", None)
-        if cat_token is None:
-            cat_token = getattr(backbone, "cat_token", False)
+        blocks = getattr(pretrained_backbone, 'blocks', None)
+        if blocks is None:
+            raise RuntimeError('DA3 pretrained backbone does not expose transformer blocks')
 
-        feature_dim = None if token_dim is None else int(token_dim) * (2 if bool(cat_token) else 1)
-
-        alt_start = getattr(pretrained, "alt_start", None)
+        cat_token = bool(getattr(pretrained_backbone, 'cat_token', getattr(backbone, 'cat_token', False)))
+        alt_start = getattr(pretrained_backbone, 'alt_start', getattr(backbone, 'alt_start', None))
         if alt_start is None:
-            alt_start = getattr(backbone, "alt_start", None)
-
-        name = getattr(backbone, "name", None)
-        if name is None and pretrained is not None:
-            name = getattr(pretrained, "name", None)
-        if name is None:
-            name = type(pretrained).__name__ if pretrained is not None else type(backbone).__name__
+            raise RuntimeError('DA3 backbone does not define alt_start')
 
         return {
-            "name": name,
-            "token_dim": None if token_dim is None else int(token_dim),
-            "feature_dim": feature_dim,
-            "out_layers": out_layers,
-            "alt_start": alt_start,
+            'name': getattr(backbone, 'name', pretrained_backbone.__class__.__name__),
+            'token_dim': int(token_dim),
+            'feature_dim': int(token_dim) * (2 if cat_token else 1),
+            'out_layers': out_layers,
+            'alt_start': int(alt_start),
+            'total_layers': len(blocks),
+            'num_heads': int(getattr(pretrained_backbone, 'num_heads', 16)),
+            'cat_token': cat_token,
         }
 
     def init_sam3_head(self, img_size=518, embed_dim=256, patch_size=14, device=None, use_dpt_proj=False):
@@ -135,10 +160,19 @@ class DA3Wrapper(DepthAnything3):
         print(f'  - embed_dim: {embed_dim}')
         print(f'  - patch_size: {patch_size}')
         print(f'  - use_dpt_proj: {use_dpt_proj}')
+
+        backbone_metadata = self._log_backbone_metadata('[INFO] Active DA3 backbone for SAM3 head')
+        out_layers = backbone_metadata['out_layers']
+        feature_dim = backbone_metadata['feature_dim']
+
+        if use_dpt_proj and len(out_layers) != 4:
+            raise ValueError(
+                f'SAM3 DPT projection expects exactly 4 backbone output layers, got {len(out_layers)}: {list(out_layers)}'
+            )
         
         if use_dpt_proj:
-            # DPT mode: 4 separate layer dimensions (each layer is 2048 with cat_token=True)
-            input_dims = (2048, 2048, 2048, 2048)
+            # DPT mode: use one feature width per exported layer.
+            input_dims = tuple(feature_dim for _ in out_layers)
             print(f'  - input_dims: {input_dims}')
             
             self.head_sam = SAM3Head(
@@ -151,8 +185,7 @@ class DA3Wrapper(DepthAnything3):
             )
         else:
             # Current behavior: concatenate all 4 layers
-            # We use 4 layers concatenated (11, 15, 19, 23)
-            backbone_embed_dim = 2048 * 4
+            backbone_embed_dim = feature_dim * len(out_layers)
             print(f'  - backbone_embed_dim: {backbone_embed_dim}')
             
             self.head_sam = SAM3Head(
@@ -198,21 +231,28 @@ class DA3Wrapper(DepthAnything3):
         The aux branch is frozen and takes input from layer (depth - n - 1).
         
         Args:
-            n_layers: Number of layers to duplicate (default: 6, i.e., layers 18-23)
+            n_layers: Number of final backbone layers to duplicate
         
         Returns:
             self for method chaining
         """
         import copy
+        backbone_metadata = self.get_backbone_metadata()
+        total_layers = backbone_metadata['total_layers']
+        if n_layers <= 0:
+            raise ValueError(f'n_layers must be positive, got {n_layers}')
+        if n_layers > total_layers:
+            raise ValueError(f'n_layers={n_layers} exceeds backbone depth={total_layers}')
+
         self.aux_n_layers = n_layers
-        self.aux_input_layer_idx = 24 - n_layers - 1  # Layer before last n (e.g., 17 for n=6)
+        self.aux_input_layer_idx = total_layers - n_layers - 1
         
         # Get the pretrained backbone blocks
-        backbone_blocks = self.model.backbone.pretrained.blocks
+        backbone_blocks = self._get_pretrained_backbone().blocks
         
         # Duplicate last n layers
         self.aux_blocks = nn.ModuleList([
-            copy.deepcopy(backbone_blocks[24 - n_layers + i])
+            copy.deepcopy(backbone_blocks[total_layers - n_layers + i])
             for i in range(n_layers)
         ])
         
@@ -236,7 +276,7 @@ class DA3Wrapper(DepthAnything3):
         The aux branch processes tokens starting from aux_input_layer_idx.
         It collects outputs at specific layer indices matching the main backbone's out_layers.
         
-        For DA3-LARGE with out_layers=[11, 15, 19, 23] and aux_branch starting at layer 17 (n_layers=6):
+        Example with DA3-LARGE and out_layers=[11, 15, 19, 23], aux_branch starting at layer 17 (n_layers=6):
         - Layers 11, 15 are BEFORE aux branch - passed via main_feats from main backbone
         - Layer 19 = aux block index 1 (17+1+1=19)
         - Layer 23 = aux block index 5 (17+1+5=23)
@@ -256,7 +296,7 @@ class DA3Wrapper(DepthAnything3):
             raise RuntimeError("Aux branch not initialized. Call init_aux_branch() first.")
         
         # Get backbone parameters for compatibility
-        backbone = self.model.backbone.pretrained
+        backbone = self._get_pretrained_backbone()
         
         # aux_tokens is now a tuple (x, local_x) from raw backbone export
         # Both include cls/register tokens
@@ -268,7 +308,7 @@ class DA3Wrapper(DepthAnything3):
         pos, pos_nodiff = backbone._prepare_rope(B, S, h, w, x.device)
         
         # Get out_layers from backbone config (e.g., [11, 15, 19, 23])
-        out_layers = self.model.backbone.out_layers
+        out_layers = self.get_backbone_metadata()['out_layers']
         
         # Collect outputs at specific layer indices
         # For layers within aux block range, collect actual outputs
@@ -300,7 +340,7 @@ class DA3Wrapper(DepthAnything3):
                 aux_outputs.append((patch_x, x[:, :, 0]))  # (features, camera_token)
         
         # For out_layers before aux range, use main_feats from the main backbone
-        # For DA3-LARGE out_layers=[11, 15, 19, 23] with aux starting at 17:
+        # Example for DA3-LARGE with out_layers=[11, 15, 19, 23] and aux starting at 17:
         # - Layer 11, 15 are before aux, layer 19, 23 are in aux
         out_layers_before_aux = [l for l in out_layers if l <= self.aux_input_layer_idx]
         
@@ -774,7 +814,7 @@ class DA3Wrapper(DepthAnything3):
 
         # Prepare export_feat_layers
         if export_feat_layers is None:
-            export_feat_layers = list(self.model.backbone.out_layers)
+            export_feat_layers = list(self.get_backbone_metadata()['out_layers'])
         else:
             export_feat_layers = list(export_feat_layers)
         
@@ -825,7 +865,7 @@ class DA3Wrapper(DepthAnything3):
             aux_intermediate = aux_feat_tuple[1]  # raw_state = (x, local_x)
             
             # Get out_layers and identify which are before aux branch
-            out_layers = self.model.backbone.out_layers
+            out_layers = self.get_backbone_metadata()['out_layers']
             out_layers_before_aux = [l for l in out_layers if l <= self.aux_input_layer_idx]
            
             # Extract main backbone features for layers before aux branch
@@ -870,7 +910,7 @@ class DA3Wrapper(DepthAnything3):
         b, t, n, _ = patch_tokens.shape
 
         if export_feat_layers is None:
-            export_feat_layers = list(self.model.backbone.out_layers)
+            export_feat_layers = list(self.get_backbone_metadata()['out_layers'])
         else:
             export_feat_layers = list(export_feat_layers)
         

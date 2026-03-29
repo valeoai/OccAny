@@ -18,6 +18,8 @@ from torch_scatter import scatter_min
 
 
 def _ensure_outputs_on_device(output, expected_device):
+    expected_device = torch.device(expected_device)
+
     def _device_matches(actual_device, target_device):
         if actual_device.type != target_device.type:
             return False
