@@ -39,7 +39,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 
 ## 📰 News
 
-- 01/04/2026: Added **depth and reconstruction evaluation** (`extract_recon.py` + `compute_recon_metrics.py`) comparing OccAny+ recon 1.1B against plain DA3 on KITTI and nuScenes; see [Depth and Point-Cloud Reconstruction](#depth-and-point-cloud-reconstruction).
+- 01/04/2026: Added **depth and reconstruction evaluation** (`extract_recon.py` + `compute_recon_metrics.py`) comparing OccAny+ recon 1.1B against plain DA3 on KITTI and nuScenes; see [Depth and Point-Cloud Reconstruction](#-depth-and-point-cloud-reconstruction).
 - 29/03/2026: Added a bonus training recipe for the **OccAny 1.1B reconstruction model**, fine-tuned from **DA3 1.1B**; see [🏋️ Training](#bonus-train-the-occany-11b-reconstruction-model) and [📦 Checkpoints](#-checkpoints). Also added **ego trajectory evaluation on nuScenes**; see [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation).
 
 ## 📑 Table of Contents
@@ -52,7 +52,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 - [👁️ Visualization](#%EF%B8%8F-visualization)
 - [📊 Evaluation](#-evaluation)
 - [📊 Additional Evaluation](#additional-evaluation)
-  - [📐 Depth and Point-Cloud Reconstruction](#depth-and-point-cloud-reconstruction)
+  - [📐 Depth and Point-Cloud Reconstruction](#-depth-and-point-cloud-reconstruction)
   - [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation)
 - [🏋️ Training](#%EF%B8%8F-training)
 - [📄 License](#-license)
