@@ -39,7 +39,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 
 ## 📰 News
 
-- 01/04/2026: Added **reconstruction accuracy evaluation** (`eval_recon.py`) comparing OccAny+ recon 1.1B against plain DA3 on KITTI and nuScenes; see [Reconstruction Accuracy](#reconstruction-accuracy-eval_reconpy).
+- 01/04/2026: Added **depth and reconstruction evaluation** (`extract_recon.py` + `compute_recon_metrics.py`) comparing OccAny+ recon 1.1B against plain DA3 on KITTI and nuScenes; see [Depth and Point-Cloud Reconstruction](#depth-and-point-cloud-reconstruction).
 - 29/03/2026: Added a bonus training recipe for the **OccAny 1.1B reconstruction model**, fine-tuned from **DA3 1.1B**; see [🏋️ Training](#bonus-train-the-occany-11b-reconstruction-model) and [📦 Checkpoints](#-checkpoints). Also added **ego trajectory evaluation on nuScenes**; see [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation).
 
 ## 📑 Table of Contents
@@ -51,8 +51,8 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 - [⚙️ Key Inference Flags](#%EF%B8%8F-key-inference-flags)
 - [👁️ Visualization](#%EF%B8%8F-visualization)
 - [📊 Evaluation](#-evaluation)
-- [Additional Evaluation](#additional-evaluation)
-  - [Reconstruction Accuracy](#reconstruction-accuracy-eval_reconpy)
+- [📊 Additional Evaluation](#additional-evaluation)
+  - [📐 Depth and Point-Cloud Reconstruction](#depth-and-point-cloud-reconstruction)
   - [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation)
 - [🏋️ Training](#%EF%B8%8F-training)
 - [📄 License](#-license)
@@ -247,7 +247,7 @@ python inference.py \
 Each processed scene is written under `./demo_data/output/<frame_id>_<model>/`. Common artifacts include:
 
 - `pts3d_render.npy` for reconstruction-view point clouds and metadata
-- `pts3d_render_gen.npy` for generated-view point clouds and metadata when `--gen` is enabled
+- `pts3d_render_gen.npy` for rendered-view point clouds and metadata when `--gen` is enabled
 - `pts3d_render_recon_gen.npy` for the merged point-cloud bundle
 - `voxel_predictions.pkl` for voxelized occupancy predictions, camera metadata, and visualization inputs
 
@@ -280,7 +280,7 @@ voxel_origin = np.array([-40.0, -40.0, -1.0], dtype=np.float32)
 
 ## ⚙️ Key Inference Flags
 
-The most commonly adjusted flags fall into three groups: common flags, semantic flags, and generation-specific flags. If you only want reconstruction output, omit `--gen` and any flag whose scope below is `Generation` or `Generation + semantic`.
+The most commonly adjusted flags fall into three groups: common flags, semantic flags, and render-specific flags. If you only want reconstruction output, omit `--gen` and any flag whose scope below is `Render` or `Render + semantic`.
 
 <details>
 <summary>List of inference flags</summary>
@@ -290,22 +290,22 @@ The most commonly adjusted flags fall into three groups: common flags, semantic 
 | `--model` | Common | Select the inference backbone: `occany_da3` or `occany_must3r` |
 | `--input_dir` | Common | Directory containing RGB demo scene folders |
 | `--output_dir` | Common | Directory where outputs are written |
-| `--gen` | Common toggle | Enable novel-view generation before voxel fusion |
-| `-vpi`, `--views_per_interval` | Generation | Number of generated views sampled per reconstruction view |
-| `-fwd`, `--gen_forward_novel_poses_dist` | Generation | Forward offset for generated views, in meters |
-| `-rot`, `--gen_rotate_novel_poses_angle` | Generation | Left/right yaw rotation applied to generated views, in degrees |
-| `--num_seed_rotations` | Generation | Number of additional seed rotations used when initializing generated poses |
-| `--seed_rotation_angle` | Generation | Angular spacing between seed rotations, in degrees |
-| `--seed_translation_distance` | Generation | Lateral translation paired with each seed rotation, in meters |
-| `--batch_gen_view` | Generation | Number of generated views processed in parallel |
+| `--gen` | Common toggle | Enable novel-view rendering before voxel fusion |
+| `-vpi`, `--views_per_interval` | Render | Number of rendered views sampled per reconstruction view |
+| `-fwd`, `--gen_forward_novel_poses_dist` | Render | Forward offset for rendered views, in meters |
+| `-rot`, `--gen_rotate_novel_poses_angle` | Render | Left/right yaw rotation applied to rendered views, in degrees |
+| `--num_seed_rotations` | Render | Number of additional seed rotations used when initializing rendered poses |
+| `--seed_rotation_angle` | Render | Angular spacing between seed rotations, in degrees |
+| `--seed_translation_distance` | Render | Lateral translation paired with each seed rotation, in meters |
+| `--batch_gen_view` | Render | Number of rendered views processed in parallel |
 | `--semantic` | Semantic | Enable semantic inference with a SAM2 or SAM3 variant |
 | `--compute_segmentation_masks` | Semantic | Save segmentation masks during semantic inference |
 | `--view_batch_size` | Semantic | Number of views processed together during semantic inference |
 | `--recon_conf_thres` | Reconstruction | Confidence threshold used when voxelizing reconstructed points |
-| `--gen_conf_thres` | Generation | Confidence threshold used when voxelizing generated points |
-| `--no_semantic_from_rotated_views` | Generation + semantic | Ignore semantics from rotated generated views |
-| `--only_semantic_from_recon_view` | Generation + semantic | Use semantics only from reconstruction views, even when generated views are present |
-| `--gen_semantic_from_distill_sam3` | Generation + semantic | For `pretrained@SAM3`, infer generated-view semantics from distilled SAM3 features when available |
+| `--gen_conf_thres` | Render | Confidence threshold used when voxelizing rendered points |
+| `--no_semantic_from_rotated_views` | Render + semantic | Ignore semantics from rotated rendered views |
+| `--only_semantic_from_recon_view` | Render + semantic | Use semantics only from reconstruction views, even when rendered views are present |
+| `--gen_semantic_from_distill_sam3` | Render + semantic | For `pretrained@SAM3`, infer rendered-view semantics from distilled SAM3 features when available |
 | `--apply_majority_pooling` | Post-processing | Apply 3x3x3 majority pooling to the fused voxel grid |
 
 </details>
@@ -324,7 +324,7 @@ python vis_viser.py --input_folder ./demo_data/output
 You can point `--input_folder` either to the output root or directly to a single scene folder. In the viewer, the common dropdown options are:
 
 - `render` for reconstruction output
-- `render_gen` for generated-view output
+- `render_gen` for rendered-view output
 - `render_recon_gen` for the combined output
 
 ### Voxel Renderer (`mayavi`)
@@ -460,10 +460,10 @@ $PROJECT/data/nuscenes/
 ### Local Shell Workflow
 
 > [!CAUTION]
-> Evaluation can take a very long time on a single process because some extraction presets generate up to 180 novel views. We therefore provide the SLURM commands in the [SLURM Workflow](#slurm-workflow) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
+> Evaluation can take a very long time on a single process because some extraction presets render up to 180 novel views. We therefore provide the SLURM commands in the [SLURM Workflow](#slurm-workflow) section, which run 20 processes in parallel for occupancy extraction. We have only tested the SLURM path but the local shell should output the same results.
 
 > [!NOTE]
-> To maximize performance, some presets sample novel views densely, generating roughly 150–180 views. You can reduce runtime by lowering `-vpi` (views per reconstruction view). In general, the total number of novel views is `n_recon × vpi × (3 if rot > 0 else 1)`.
+> To maximize performance, some presets sample novel views densely, rendering roughly 150–180 views. You can reduce runtime by lowering `-vpi` (views per reconstruction view). In general, the total number of novel views is `n_recon × vpi × (3 if rot > 0 else 1)`.
 
 
 Evaluation is a two-step workflow:
@@ -510,7 +510,7 @@ USE_MAJORITY_POOLING=1 POOLING_MODE=<mode> EXP_LIST=<metric_exp_list> EXP_ID=<id
 
 ### SLURM Workflow
 
-Some extraction presets can generate up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`).
+Some extraction presets can render up to 180 views, so extraction can be slow. The provided `slurm/eval_occany.slurm` script runs a 20-task array in parallel by default (`#SBATCH --array=0-19` with `WORLD=20`).
 
 Each example below submits the extraction job first and then chains the metric job with `--dependency=afterany:$(...)`, so the metric job waits until the full extraction array finishes. The public SLURM wrappers keep the Karolina-HPC defaults (`-A eu-25-92`, `--partition=qgpu`, `--hint=nomultithread`, `--cpus-per-task=16`, and `conda activate occany`); update those settings to match your cluster.
 
@@ -550,37 +550,71 @@ sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=<exp_list>,EX
 | nuScenes surround pretrained sem. | Tab. 7 | `5` | mIoU 9.45 · mIoU*ˢᶜ* 12.22 | `unified` |
 
 
-## Additional Evaluation
-### Reconstruction Accuracy (`eval_recon.py`)
+## 📊 Additional Evaluation
 
-`eval_recon.py` computes point-cloud reconstruction metrics (accuracy, completeness, precision, recall, F-score) by comparing predicted point clouds against sparse lidar-derived ground-truth points.
+This section evaluates out-of-domain 3D reconstruction, depth estimation, and ego trajectory estimation on KITTI and nuScenes. Both datasets are unseen during training. All metrics in this section are reported in physical metric space.
+
+### 📐 Depth and Point-Cloud Reconstruction
+
+Reconstruction accuracy is evaluated in two steps:
+
+1. **`extract_recon.py`** — runs model inference and saves per-sample point clouds and depths as `.npz` files. Supports `--world`/`--pid` for SLURM array parallelism.
+2. **`compute_recon_metrics.py`** — loads the saved `.npz` files, computes 3D reconstruction metrics (accuracy, completeness, precision, recall, F-score) and depth metrics, then writes aggregated results to `recon_metrics.json`.
+
+Reconstruction distances are reported in meters, and precision, recall, and F-score use a 0.5 m correspondence threshold.
+
+#### Results
+
+##### Point-Cloud Reconstruction
+
+
+| Setting | Model | `acc` ↓ | `comp` ↓ | `overall` ↓ | `prec` ↑ | `recall` ↑ | `F-score` ↑ |
+|:---|:---|---:|---:|---:|---:|---:|---:|
+| KITTI 5frames | DA3 1.1B + DA3 metric 0.35B | 1.43 | **0.78** | **1.11** | 42.11 | 63.57 | 50.48 |
+| KITTI 5frames | OccAny+ recon 1.1B | **1.06** | 1.23 | 1.15 | **59.09** | **79.86** | **67.52** |
+| nuScenes surround | DA3 1.1B + DA3 metric 0.35B | 7.31 | 1.61 | 4.46 | 32.92 | 42.35 | 36.68 |
+| nuScenes surround | OccAny+ recon 1.1B | **1.79** | **0.97** | **1.38** | **38.71** | **64.75** | **48.03** |
+
+##### Depth Estimation
+
+Depth is capped at 80 m. 
+| Setting | Model | `abs_rel` (%) ↓ | `sq_rel` ↓ | `rmse` ↓ | `log_rmse` ↓ | $\delta < 1.25$ (%) ↑ | $\delta < 1.25^2$ (%) ↑ | $\delta < 1.25^3$ (%) ↑ |
+|:---|:---|---:|---:|---:|---:|---:|---:|---:|
+| KITTI 5frames | DA3 1.1B + DA3 metric 0.35B | 33.28 | 2.21 | 6.27 | 0.32 | 33.02 | 92.39 | 98.11 |
+| KITTI 5frames | OccAny+ recon 1.1B | **9.58** | **0.62** | **4.35** | **0.19** | **90.39** | **96.15** | **98.15** |
+| nuScenes surround | DA3 1.1B + DA3 metric 0.35B | 45.38 | 10.16 | 9.70 | 0.43 | 49.47 | 76.97 | 91.63 |
+| nuScenes surround | OccAny+ recon 1.1B | **24.43** | **2.16** | **6.71** | **0.34** | **68.37** | **88.00** | **94.13** |
 
 #### SLURM Workflow
 
-Submit all four evaluation presets as a single array job:
+The extraction step is parallelized across SLURM array tasks. Each task processes a shard of the dataset. After all extraction tasks finish, a single metric computation job aggregates the results.
+
+**Step 1 — Extract** (submit one array job per experiment config):
 
 ```bash
-sbatch slurm/eval_recon.slurm
+# EXP_ID=0: KITTI OccAny+ 1B, EXP_ID=1: nuScenes OccAny+ 1B,
+# EXP_ID=2: KITTI DA3, EXP_ID=3: nuScenes DA3
+EXP_LIST=recon EXP_ID=0 sbatch slurm/extract_recon.slurm
 ```
 
-The bundled wrapper maps the array tasks as follows:
+The default SLURM wrapper uses 20 array tasks (`--array=0-19`). Override with:
 
-| `SLURM_ARRAY_TASK_ID` | Model | Dataset | Setting | Checkpoint |
+```bash
+EXP_LIST=recon EXP_ID=0 WORLD=20 sbatch --array=0-19 slurm/extract_recon.slurm
+```
+
+**Step 2 — Compute metrics** (after all extraction tasks finish):
+
+```bash
+EXP_LIST=metric_recon EXP_ID=0 sbatch slurm/compute_recon_metric.slurm
+```
+
+| `EXP_ID` | Model | Dataset | Setting | Checkpoint |
 |:---:|:---|:---|:---|:---|
 | `0` | `occany_da3` | KITTI | 5frames | `occany_plus_recon_1B.pth` |
 | `1` | `occany_da3` | nuScenes | surround | `occany_plus_recon_1B.pth` |
 | `2` | `da3` | KITTI | 5frames | *(plain DA3 Giant, no checkpoint)* |
 | `3` | `da3` | nuScenes | surround | *(plain DA3 Giant, no checkpoint)* |
-
-#### Reconstruction results:
-
-| Model | Dataset | Setting | `acc`&#8595; | `comp`&#8595; | `overall` &#8595;|
-|:---|:---|:---|---:|---:|---:|
-| DA3 1.1B + DA3 metric 0.35B	  | KITTI | 5frames | 1.16 | 1.70 | 1.43 |
-| OccAny+ recon 1.1B | KITTI | 5frames | 1.06 | 1.23 | 1.15 |
-| DA3 1.1B + DA3 metric 0.35B	 | nuScenes | surround | 11.22 | 1.59 | 6.40 |
-| OccAny+ recon 1.1B | nuScenes | surround | 1.79 | 0.96 | 1.38 |
-
 
 #### Local Shell Workflow
 
@@ -588,37 +622,49 @@ Run the same evaluations locally without SLURM:
 
 ```bash
 # 1) KITTI 5frames — OccAny+ 1B
-python eval_recon.py \
+python extract_recon.py \
   --model occany_da3 \
   --dataset kitti \
   --setting 5frames \
   --exp_name occany_plus_recon_1B \
   --occany_recon_ckpt ./checkpoints/occany_plus_recon_1B.pth
+
+python compute_recon_metrics.py \
+  --exp_dir ./outputs/occany_plus_recon_1B_occany_da3_kitti_5frames_img512
 
 # 2) nuScenes surround — OccAny+ 1B
-python eval_recon.py \
+python extract_recon.py \
   --model occany_da3 \
   --dataset nuscenes \
   --setting surround \
   --exp_name occany_plus_recon_1B \
   --occany_recon_ckpt ./checkpoints/occany_plus_recon_1B.pth
 
+python compute_recon_metrics.py \
+  --exp_dir ./outputs/occany_plus_recon_1B_occany_da3_nuscenes_surround_img512
+
 # 3) KITTI 5frames — plain DA3 Giant
-python eval_recon.py \
+python extract_recon.py \
   --model da3 \
   --dataset kitti \
   --setting 5frames \
   --exp_name da3_recon
 
+python compute_recon_metrics.py \
+  --exp_dir ./outputs/da3_recon_da3_kitti_5frames_img512
+
 # 4) nuScenes surround — plain DA3 Giant
-python eval_recon.py \
+python extract_recon.py \
   --model da3 \
   --dataset nuscenes \
   --setting surround \
   --exp_name da3_recon
+
+python compute_recon_metrics.py \
+  --exp_dir ./outputs/da3_recon_da3_nuscenes_surround_img512
 ```
 
-Metric results are written to `./outputs/<exp_name>_<model>_<dataset>_<setting>_img512/recon_metrics.json`.
+Extraction outputs (`.npz` files) and metric results (`recon_metrics.json`) are written to `./outputs/<exp_name>_<model>_<dataset>_<setting>_img512/`.
 
 ### 🚗 Ego Trajectory Evaluation
 
@@ -679,7 +725,7 @@ All training SLURM scripts in this repository have been tested on 16 A100 40G GP
 Both wrappers use the same array-task mapping:
 
 - `0` = reconstruction stage
-- `1` = generation stage
+- `1` = render stage
 
 The shell entrypoints under `sh/` expect the processed training datasets referenced in those files to already exist under `$SCRATCH/data/...`. If your processed dataset roots live elsewhere, update the paths in the corresponding `sh/train_*.sh` file before launching training.
 
@@ -708,7 +754,7 @@ You can also override script defaults inline, for example:
 BATCH_SIZE=1 N_WORKERS=4 bash sh/train_occany_recon.sh
 ```
 
-Training recipe note: the original **OccAny** training was run in three stages: **sequence-only reconstruction**, **sequence-only generation**, and **sequence + surround reconstruction**. In this public codebase, we simplify the recipe to two stages: **sequence + surround reconstruction** followed by **sequence + surround generation**. This simplified two-stage recipe is also the one used for **OccAny+**.
+Training recipe note: the original **OccAny** training was run in three stages: **sequence-only reconstruction**, **sequence-only rendering**, and **sequence + surround reconstruction**. In this public codebase, we simplify the recipe to two stages: **sequence + surround reconstruction** followed by **sequence + surround rendering**. This simplified two-stage recipe is also the one used for **OccAny+**.
 
 ### Prepare Training Datasets
 
@@ -890,7 +936,7 @@ Once the processed roots and sequence pickle files are in place, the default tra
 
 #### Download the Must3R Base Checkpoint
 
-OccAny reconstruction and generation both rely on the Must3R base weights referenced by `sh/train_occany_recon.sh` and `sh/train_occany_gen.sh`:
+OccAny reconstruction and rendering both rely on the Must3R base weights referenced by `sh/train_occany_recon.sh` and `sh/train_occany_gen.sh`:
 
 ```bash
 mkdir -p checkpoints
@@ -918,11 +964,11 @@ With the default script values, checkpoints and TensorBoard logs are written to:
 $PROJECT/tb_log_occany/occany_recon
 ```
 
-For **OccAny**, the final checkpoint for both reconstruction and generation is the **last checkpoint**, i.e. `checkpoint-last.pth`.
+For **OccAny**, the final checkpoint for both reconstruction and rendering is the **last checkpoint**, i.e. `checkpoint-last.pth`.
 
-#### Run the Generation Stage
+#### Run the Render Stage
 
-Before launching generation, point the helper script at the reconstruction checkpoint you just trained. By default it uses:
+Before launching rendering, point the helper script at the reconstruction checkpoint you just trained. By default it uses:
 
 ```bash
 checkpoints/occany_recon.pth
@@ -936,9 +982,9 @@ If you want a different path, override `OCCANY_RECON_CKPT` inline:
 OCCANY_RECON_CKPT=/path/to/occany_recon.pth bash sh/train_occany_gen.sh
 ```
 
-Keep the Must3R base checkpoint available at `checkpoints/MUSt3R_512.pth`, or override `MUST3R_PRETRAINED_CKPT`. The generation stage still loads the base Must3R checkpoint in addition to `--pretrained_occany`.
+Keep the Must3R base checkpoint available at `checkpoints/MUSt3R_512.pth`, or override `MUST3R_PRETRAINED_CKPT`. The render stage still loads the base Must3R checkpoint in addition to `--pretrained_occany`.
 
-Then launch the generation stage with:
+Then launch the render stage with:
 
 ```bash
 sbatch --array=1 slurm/train_occany.slurm
@@ -950,7 +996,7 @@ Without SLURM, run the same stage directly with:
 BATCH_SIZE=2 bash sh/train_occany_gen.sh
 ```
 
-With the default script values, generation outputs are written to:
+With the default script values, render outputs are written to:
 
 ```bash
 $PROJECT/tb_log_occany/occany_gen
@@ -978,7 +1024,7 @@ With the default script values, checkpoints and TensorBoard logs are written to:
 $PROJECT/tb_log_occany/occany_plus_recon
 ```
 
-For **OccAny+**, we use the checkpoint at **epoch 50** as the final checkpoint for both reconstruction comparison and generation handoff for comparison convenience: all OccAny+ experiments run past 50 epochs within about **2 days on 16 A100 40GB GPUs**.
+For **OccAny+**, we use the checkpoint at **epoch 50** as the final checkpoint for both reconstruction comparison and render for comparison convenience: all OccAny+ experiments run past 50 epochs within about **2 days on 16 A100 40GB GPUs**.
 
 #### Bonus: Train the OccAny 1.1B Reconstruction Model
 
@@ -1002,9 +1048,9 @@ With the default script values, checkpoints and TensorBoard logs are written to:
 $PROJECT/tb_log_occany/occany_plus_recon_1B
 ```
 
-#### Run the Generation Stage
+#### Run the Render Stage
 
-Before launching generation, point the helper script at the reconstruction checkpoint you just trained. By default it uses:
+Before launching rendering, point the helper script at the reconstruction checkpoint you just trained. By default it uses:
 
 ```bash
 checkpoints/occany_plus_recon.pth
@@ -1018,7 +1064,7 @@ If you want a different path, override `OCCANY_PLUS_RECON_CKPT` inline:
 OCCANY_PLUS_RECON_CKPT=/path/to/occany_plus_recon.pth bash sh/train_occany_plus_gen.sh
 ```
 
-Then launch the generation stage with:
+Then launch the render stage with:
 
 ```bash
 sbatch --array=1 slurm/train_occany_plus.slurm
@@ -1030,7 +1076,7 @@ Without SLURM, run the same stage directly with:
 bash sh/train_occany_plus_gen.sh
 ```
 
-With the default script values, generation outputs are written to:
+With the default script values, render outputs are written to:
 
 ```bash
 $PROJECT/tb_log_occany/occany_plus_gen

@@ -17,7 +17,8 @@ from occany.utils.image_util import (
 )
 
 from occany.semantic_inference import infer_sam2_boxes, ModelManager
-
+from depth_anything_3.utils.geometry import affine_inverse
+from dust3r.utils.geometry import geotrf        
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -400,9 +401,11 @@ def convert_da3_output_to_occany_format(
     fallback_focal: Optional[torch.Tensor] = None,
 ) -> Dict[str, torch.Tensor]:
     """Convert DA3 output dict to the schema used in this extraction script."""
+
+
     pts3d = da3_output["pointmap"]
     conf = da3_output["depth_conf"]
-    B, T = pts3d.shape[:2]
+    B, T, H, W, _ = pts3d.shape
 
     c2w = da3_output.get("c2w")
     if c2w is None:
@@ -411,6 +414,11 @@ def convert_da3_output_to_occany_format(
         bottom_row = torch.tensor([0.0, 0.0, 0.0, 1.0], device=c2w.device, dtype=c2w.dtype)
         bottom_row = bottom_row.view(1, 1, 1, 4).expand(c2w.shape[0], c2w.shape[1], 1, 4)
         c2w = torch.cat([c2w, bottom_row], dim=-2)
+
+    # Compute pts3d_local: transform world-space points into each camera's frame
+    w2c = affine_inverse(c2w)
+    pts3d_local = geotrf(w2c, pts3d.reshape(B, T, -1, 3))
+    pts3d_local = pts3d_local.reshape(B, T, H, W, 3)
 
     intrinsics = da3_output.get("intrinsics")
     if intrinsics is not None:
@@ -426,9 +434,10 @@ def convert_da3_output_to_occany_format(
     
     return {
         "pts3d": pts3d,
-        "pts3d_local": pts3d,
+        "pts3d_local": pts3d_local,
         "conf": conf,
         "focal": focal,
         "c2w": c2w,
         "c2w_input": c2w,
+        "depth": da3_output["depth"],
     }

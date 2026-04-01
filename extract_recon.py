@@ -10,8 +10,6 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from occany.utils.recon_eval_helper import evaluate_3d_reconstruction
-
 REPO_ROOT = Path(__file__).resolve().parent
 VENDORED_IMPORT_PATHS = [
     REPO_ROOT / "third_party",
@@ -21,6 +19,7 @@ VENDORED_IMPORT_PATHS = [
     REPO_ROOT / "third_party" / "Grounded-SAM-2" / "grounding_dino",
     REPO_ROOT / "third_party" / "sam3",
     REPO_ROOT / "third_party" / "Depth-Anything-3" / "src",
+    REPO_ROOT / "third_party" / "pyTorchChamferDistance",
 ]
 for vendored_path in reversed(VENDORED_IMPORT_PATHS):
     vendored_path_str = str(vendored_path)
@@ -29,8 +28,6 @@ for vendored_path in reversed(VENDORED_IMPORT_PATHS):
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-METRIC_KEYS = ("acc", "comp", "overall", "precision", "recall", "fscore")
-PERCENT_METRIC_KEYS = {"precision", "recall", "fscore"}
 MAX_POINT_CLOUD_DEPTH_METERS = 50.0
 DEFAULT_DA3_MODEL_NAME = "depth-anything/DA3-GIANT-1.1"
 DEFAULT_DA3_METRIC_MODEL_NAME = "depth-anything/DA3METRIC-LARGE"
@@ -39,7 +36,7 @@ IMAGE_SIZE = 512
 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Evaluate OccAny reconstruction with sparse lidar-derived GT points.",
+        description="Extract reconstruction outputs (point clouds & depths) for later metric computation.",
     )
     parser.add_argument(
         "--model",
@@ -80,7 +77,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--output_dir",
         type=str,
         default="./outputs",
-        help="Directory where metric results are written.",
+        help="Directory where extraction results are written.",
     )
     parser.add_argument(
         "--occany_recon_ckpt",
@@ -129,12 +126,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="nuScenes dataset root.",
     )
     parser.add_argument(
-        "--metric_threshold",
-        type=float,
-        default=float(os.environ.get("METRIC_THRESHOLD", 0.5)),
-        help="Distance threshold in meters for precision / recall / f-score.",
-    )
-    parser.add_argument(
         "--save_pointcloud_pairs",
         type=int,
         default=int(os.environ.get("SAVE_POINTCLOUD_PAIRS", 0)),
@@ -173,14 +164,27 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=os.environ.get("SILENT", "").strip().lower() in {"1", "true", "yes", "on"},
         help="Reduce per-sample logging.",
     )
+    # Sharding arguments for SLURM array parallelism
+    parser.add_argument(
+        "--world",
+        type=int,
+        default=int(os.environ.get("WORLD", 1)),
+        help="Number of parallel workers (SLURM array size).",
+    )
+    parser.add_argument(
+        "--pid",
+        type=int,
+        default=int(os.environ.get("PID", 0)),
+        help="Process ID within the worker pool (SLURM_ARRAY_TASK_ID).",
+    )
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
     if args.dataset == "kitti" and args.setting != "5frames":
-        raise ValueError("This simplified evaluator only supports KITTI with --setting 5frames.")
+        raise ValueError("This evaluator only supports KITTI with --setting 5frames.")
     if args.dataset == "nuscenes" and args.setting != "surround":
-        raise ValueError("This simplified evaluator only supports nuScenes with --setting surround.")
+        raise ValueError("This evaluator only supports nuScenes with --setting surround.")
     if args.save_pointcloud_pairs < 0:
         raise ValueError("--save_pointcloud_pairs must be >= 0.")
     if args.save_pointcloud_stride < 1:
@@ -358,13 +362,11 @@ def _run_da3_metric_scaling_inference(
     from depth_anything_3.utils.ray_utils import get_extrinsic_from_camray
     from occany.utils.helpers import convert_depth_to_point_cloud as da3_depth_to_pointcloud
 
-    # Stack images from views: (B, T, C, H, W)
     images = torch.stack([v["img"] for v in recon_views], dim=1).to(device)
     _, _, _, height, width = images.size()
 
     export_feat_layers = list(da3_model.model.backbone.out_layers)
 
-    # 1. Run DA3 backbone to extract features
     feats, aux_feats = da3_model.model.backbone(
         images,
         cam_token=None,
@@ -372,10 +374,8 @@ def _run_da3_metric_scaling_inference(
         ref_view_strategy="first",
     )
 
-    # 2. Run DA3 metric model to get metric depth
     metric_output = da3_metric_model(images, export_feat_layers=[])
 
-    # 3. Run depth head
     depth_head = da3_model.model.head
     output = depth_head(feats, height, width, patch_start_idx=0)
 
@@ -384,7 +384,6 @@ def _run_da3_metric_scaling_inference(
     ray = output["ray"]
     ray_conf = output["ray_conf"]
 
-    # 4. Estimate pose from depth ray
     device_type = images.device.type
     with torch.autocast(device_type=device_type, enabled=False):
         pred_extrinsic, pred_focal_lengths, pred_principal_points = get_extrinsic_from_camray(
@@ -404,10 +403,8 @@ def _run_da3_metric_scaling_inference(
         intrinsics[:, :, 0, 2] = pred_principal_points[:, :, 0] * width * 0.5
         intrinsics[:, :, 1, 2] = pred_principal_points[:, :, 1] * height * 0.5
 
-    # 5. Apply metric scaling to metric depth
     metric_output.depth = apply_metric_scaling(metric_output.depth, intrinsics)
 
-    # 6. Apply depth alignment (least-squares scaling)
     non_sky_mask = compute_sky_mask(metric_output.sky, threshold=0.3)
     bsz = depth.shape[0]
     scale_factors = torch.ones((bsz,), dtype=depth.dtype, device=depth.device)
@@ -445,7 +442,6 @@ def _run_da3_metric_scaling_inference(
     c2w[:, :, :3, 3] = c2w[:, :, :3, 3] * scale_factors[:, None, None]
     ray[..., 3:] = ray[..., 3:] * scale_factors[:, None, None, None, None]
 
-    # 7. Handle sky regions
     non_sky_depth = depth[non_sky_mask]
     if non_sky_depth.numel() > 100000:
         idx = torch.randint(0, non_sky_depth.numel(), (100000,), device=non_sky_depth.device)
@@ -461,7 +457,6 @@ def _run_da3_metric_scaling_inference(
         max_depth=non_sky_max,
     )
 
-    # 8. Compute point cloud from depth and pose
     pointmap = da3_depth_to_pointcloud(depth, intrinsics, c2w)
 
     return {
@@ -489,7 +484,8 @@ def run_reconstruction(
             da3_metric_model,
             args.device,
         )
-        return convert_da3_output_to_occany_format(da3_output)
+        result = convert_da3_output_to_occany_format(da3_output)
+        return result
 
     if args.model == "occany_da3":
         recon_output = inference_occany_da3(
@@ -503,7 +499,8 @@ def run_reconstruction(
         )
         recon_output.pop("aux_feats", None)
         recon_output.pop("aux_outputs", None)
-        return convert_da3_output_to_occany_format(recon_output)
+        result = convert_da3_output_to_occany_format(recon_output)
+        return result
 
     raise ValueError(f"Unsupported model: {args.model}")
 
@@ -569,53 +566,6 @@ def get_sample_id(args: argparse.Namespace, data: Dict[str, List[str]], sample_i
     return f"{data['scene_name'][sample_idx]}_{data['begin_frame_token'][sample_idx]}"
 
 
-def finite_or_none(value: float):
-    return float(value) if np.isfinite(value) else None
-
-
-def aggregate_metrics(per_sample_results: List[Dict[str, object]]) -> Dict[str, object]:
-    aggregate: Dict[str, object] = {
-        "num_samples": len(per_sample_results),
-        "num_valid_samples": sum(
-            1 for item in per_sample_results if item["overall"] is not None
-        ),
-        "mean_pred_points": float(
-            np.mean([item["num_pred_points"] for item in per_sample_results])
-        ) if per_sample_results else 0.0,
-        "mean_gt_points": float(
-            np.mean([item["num_gt_points"] for item in per_sample_results])
-        ) if per_sample_results else 0.0,
-    }
-    for key in METRIC_KEYS:
-        finite_values = [
-            float(item[key])
-            for item in per_sample_results
-            if item[key] is not None
-        ]
-        aggregate[key] = float(np.mean(finite_values)) if finite_values else None
-    return aggregate
-
-
-def print_aggregate_metrics(title: str, aggregate: Dict[str, object]) -> None:
-    def _format_value(value: object, is_percent: bool = False) -> str:
-        if value is None:
-            return "None"
-        if isinstance(value, (float, np.floating)):
-            numeric_value = float(value) * 100.0 if is_percent else float(value)
-            suffix = "%" if is_percent else ""
-            return f"{numeric_value:.5f}{suffix}"
-        return str(value)
-
-    print("=" * 60)
-    print(title)
-    print(f"num_samples:      {aggregate['num_samples']}")
-    print(f"num_valid_samples:{aggregate['num_valid_samples']}")
-    for key in METRIC_KEYS:
-        print(f"{key:>10}: {_format_value(aggregate[key], is_percent=(key in PERCENT_METRIC_KEYS))}")
-    print(f"mean_pred_points: {_format_value(aggregate['mean_pred_points'])}")
-    print(f"mean_gt_points:   {_format_value(aggregate['mean_gt_points'])}")
-
-
 def main() -> None:
     parser = get_args_parser()
     args = parser.parse_args()
@@ -631,6 +581,7 @@ def main() -> None:
     if not args.silent:
         print(f"Output directory: {output_dir}")
         print(f"Output resolution: {output_resolution}")
+        print(f"Sharding: pid={args.pid}, world={args.world}")
 
     if args.model == "da3":
         model_assets = load_da3_models(
@@ -651,8 +602,8 @@ def main() -> None:
         dataset=args.dataset,
         setting=args.setting,
         image_size=IMAGE_SIZE,
-        process_id=0,
-        num_worlds=1,
+        process_id=args.pid,
+        num_worlds=args.world,
         split=args.split,
         base_model=base_model,
         kitti_root=args.kitti_root,
@@ -667,11 +618,11 @@ def main() -> None:
         collate_fn=collate_fn,
     )
 
-    per_sample_results: List[Dict[str, object]] = []
     point_cloud_dir = output_dir / "cloudcompare_txt"
     saved_pointcloud_pairs = 0
+    num_saved = 0
 
-    for data in tqdm(data_loader, desc=f"Evaluating {args.dataset}/{args.setting}"):
+    for data in tqdm(data_loader, desc=f"Extracting {args.dataset}/{args.setting} (pid {args.pid}/{args.world})"):
         recon_views, recon_gt_depths, recon_intrinsics, recon_camera_poses = build_recon_views(
             data=data,
             recon_view_idx=recon_view_idx,
@@ -685,6 +636,8 @@ def main() -> None:
         batch_size = recon_output["pts3d"].shape[0]
         for sample_idx in range(batch_size):
             sample_id = get_sample_id(args, data, sample_idx)
+            safe_sample_id = sanitize_sample_id(sample_id)
+
             pred_point_cloud = extract_pred_point_cloud(
                 recon_output=recon_output,
                 sample_idx=sample_idx,
@@ -695,28 +648,26 @@ def main() -> None:
                 camera_poses=recon_camera_poses,
                 sample_idx=sample_idx,
             )
-            metrics = evaluate_3d_reconstruction(
-                pred_point_cloud,
-                gt_point_cloud,
-                threshold=args.metric_threshold,
-            )
 
-            result = {
-                "sample_id": sample_id,
-                "num_pred_points": int(pred_point_cloud.shape[0]),
-                "num_gt_points": int(gt_point_cloud.shape[0]),
-            }
-            for key in METRIC_KEYS:
-                result[key] = finite_or_none(metrics[key])
-            per_sample_results.append(result)
+            pred_depth = recon_output["depth"][sample_idx].detach().cpu().numpy()
+            gt_depth = recon_gt_depths[sample_idx].detach().cpu().numpy()
+
+            npz_path = output_dir / f"{safe_sample_id}.npz"
+            np.savez_compressed(
+                npz_path,
+                pred_points=pred_point_cloud,
+                gt_points=gt_point_cloud,
+                pred_depth=pred_depth,
+                gt_depth=gt_depth,
+            )
+            num_saved += 1
 
             should_save_pair = (
                 args.save_pointcloud_pairs > 0
                 and saved_pointcloud_pairs < args.save_pointcloud_pairs
-                and ((len(per_sample_results) - 1) % args.save_pointcloud_stride == 0)
+                and ((num_saved - 1) % args.save_pointcloud_stride == 0)
             )
             if should_save_pair:
-                safe_sample_id = sanitize_sample_id(sample_id)
                 pair_prefix = f"{saved_pointcloud_pairs:04d}_{safe_sample_id}"
                 pred_path = point_cloud_dir / f"{pair_prefix}_pred.txt"
                 gt_path = point_cloud_dir / f"{pair_prefix}_gt.txt"
@@ -730,45 +681,30 @@ def main() -> None:
                         f"pred={pred_path.name}, gt={gt_path.name}",
                     )
 
-            if not args.silent and len(per_sample_results) % 50 == 0:
-                running_aggregate = aggregate_metrics(per_sample_results)
-                print_aggregate_metrics(
-                    f"Aggregate reconstruction metrics after {len(per_sample_results)} samples",
-                    running_aggregate,
-                )
-                print("=" * 60)
-
         del recon_output
         if torch.cuda.is_available() and args.device.startswith("cuda"):
             torch.cuda.empty_cache()
 
-    aggregate = aggregate_metrics(per_sample_results)
-    results = {
+    # Save extraction metadata
+    metadata = {
         "config": {
             "model": args.model,
             "dataset": args.dataset,
             "setting": args.setting,
             "split": args.split,
             "image_size": IMAGE_SIZE,
-            "metric_threshold": args.metric_threshold,
-            "save_pointcloud_pairs": args.save_pointcloud_pairs,
-            "save_pointcloud_stride": args.save_pointcloud_stride,
+            "pid": args.pid,
+            "world": args.world,
         },
-        "aggregate": aggregate,
-        "per_sample": per_sample_results,
+        "num_saved": num_saved,
     }
+    metadata_path = output_dir / f"extraction_metadata_pid{args.pid}.json"
+    with metadata_path.open("w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2, sort_keys=True)
 
-    results_path = output_dir / "recon_metrics.json"
-    with results_path.open("w", encoding="utf-8") as handle:
-        json.dump(results, handle, indent=2, sort_keys=True)
-
-    print_aggregate_metrics("Aggregate reconstruction metrics", aggregate)
+    print(f"Saved {num_saved} samples to: {output_dir}")
     if args.save_pointcloud_pairs > 0:
-        print(
-            f"Saved {saved_pointcloud_pairs} point-cloud pair(s) under: {point_cloud_dir}",
-        )
-    print(f"Saved metrics to: {results_path}")
-    print("=" * 60)
+        print(f"Saved {saved_pointcloud_pairs} CloudCompare pair(s) under: {point_cloud_dir}")
 
 
 if __name__ == "__main__":
