@@ -23,7 +23,6 @@ from depth_anything_3.utils.geometry import (
 )
 
 
-
 def get_world_rays(
     coordinates: torch.Tensor,
     extrinsics: torch.Tensor,

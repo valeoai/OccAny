@@ -39,6 +39,7 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 
 ## 📰 News
 
+- 01/04/2026: Added **reconstruction accuracy evaluation** (`eval_recon.py`) comparing OccAny+ recon 1.1B against plain DA3 on KITTI and nuScenes; see [Reconstruction Accuracy](#reconstruction-accuracy-eval_reconpy).
 - 29/03/2026: Added a bonus training recipe for the **OccAny 1.1B reconstruction model**, fine-tuned from **DA3 1.1B**; see [🏋️ Training](#%EF%B8%8F-training) and [📦 Checkpoints](#-checkpoints). Also added **ego trajectory evaluation on nuScenes**; see [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation).
 
 ## 📑 Table of Contents
@@ -50,7 +51,9 @@ The repository also includes sample RGB scenes in `demo_data/input`, pretrained 
 - [⚙️ Key Inference Flags](#%EF%B8%8F-key-inference-flags)
 - [👁️ Visualization](#%EF%B8%8F-visualization)
 - [📊 Evaluation](#-evaluation)
-- [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation)
+- [Additional Evaluation](#additional-evaluation)
+  - [Reconstruction Accuracy](#reconstruction-accuracy-eval_reconpy)
+  - [🚗 Ego Trajectory Evaluation](#-ego-trajectory-evaluation)
 - [🏋️ Training](#%EF%B8%8F-training)
 - [📄 License](#-license)
 - [🙏 Acknowledgments](#-acknowledgments)
@@ -462,6 +465,7 @@ $PROJECT/data/nuscenes/
 > [!NOTE]
 > To maximize performance, some presets sample novel views densely, generating roughly 150–180 views. You can reduce runtime by lowering `-vpi` (views per reconstruction view). In general, the total number of novel views is `n_recon × vpi × (3 if rot > 0 else 1)`.
 
+
 Evaluation is a two-step workflow:
 
 1. Run `extract_output_occany.py` through `sh/eval_occany.sh` (or `slurm/eval_occany.slurm`) to save voxel predictions.
@@ -545,7 +549,78 @@ sbatch --dependency=afterany:$(sbatch --parsable --export=EXP_LIST=<exp_list>,EX
 | KITTI 5-frame pretrained sem. | Tab. 7 | `4` | mIoU 8.03 · mIoU*ˢᶜ* 13.17 | `unified` |
 | nuScenes surround pretrained sem. | Tab. 7 | `5` | mIoU 9.45 · mIoU*ˢᶜ* 12.22 | `unified` |
 
-## 🚗 Ego Trajectory Evaluation
+
+## Additional Evaluation
+### Reconstruction Accuracy (`eval_recon.py`)
+
+`eval_recon.py` computes point-cloud reconstruction metrics (accuracy, completeness, precision, recall, F-score) by comparing predicted point clouds against sparse lidar-derived ground-truth points.
+
+#### SLURM Workflow
+
+Submit all four evaluation presets as a single array job:
+
+```bash
+sbatch slurm/eval_recon.slurm
+```
+
+The bundled wrapper maps the array tasks as follows:
+
+| `SLURM_ARRAY_TASK_ID` | Model | Dataset | Setting | Checkpoint |
+|:---:|:---|:---|:---|:---|
+| `0` | `occany_da3` | KITTI | 5frames | `occany_plus_recon_1B.pth` |
+| `1` | `occany_da3` | nuScenes | surround | `occany_plus_recon_1B.pth` |
+| `2` | `da3` | KITTI | 5frames | *(plain DA3 Giant, no checkpoint)* |
+| `3` | `da3` | nuScenes | surround | *(plain DA3 Giant, no checkpoint)* |
+
+#### Reconstruction results:
+
+| Model | Dataset | Setting | `acc`&#8595; | `comp`&#8595; | `overall` &#8595;|
+|:---|:---|:---|---:|---:|---:|
+| DA3 1.1B + DA3 metric 0.35B	  | KITTI | 5frames | 1.16 | 1.70 | 1.43 |
+| OccAny+ recon 1.1B | KITTI | 5frames | 1.06 | 1.23 | 1.15 |
+| DA3 1.1B + DA3 metric 0.35B	 | nuScenes | surround | 11.22 | 1.59 | 6.40 |
+| OccAny+ recon 1.1B | nuScenes | surround | 1.79 | 0.96 | 1.38 |
+
+
+#### Local Shell Workflow
+
+Run the same evaluations locally without SLURM:
+
+```bash
+# 1) KITTI 5frames — OccAny+ 1B
+python eval_recon.py \
+  --model occany_da3 \
+  --dataset kitti \
+  --setting 5frames \
+  --exp_name occany_plus_recon_1B \
+  --occany_recon_ckpt ./checkpoints/occany_plus_recon_1B.pth
+
+# 2) nuScenes surround — OccAny+ 1B
+python eval_recon.py \
+  --model occany_da3 \
+  --dataset nuscenes \
+  --setting surround \
+  --exp_name occany_plus_recon_1B \
+  --occany_recon_ckpt ./checkpoints/occany_plus_recon_1B.pth
+
+# 3) KITTI 5frames — plain DA3 Giant
+python eval_recon.py \
+  --model da3 \
+  --dataset kitti \
+  --setting 5frames \
+  --exp_name da3_recon
+
+# 4) nuScenes surround — plain DA3 Giant
+python eval_recon.py \
+  --model da3 \
+  --dataset nuscenes \
+  --setting surround \
+  --exp_name da3_recon
+```
+
+Metric results are written to `./outputs/<exp_name>_<model>_<dataset>_<setting>_img512/recon_metrics.json`.
+
+### 🚗 Ego Trajectory Evaluation
 
 This section covers ego-trajectory evaluation on NuScenes Vista validation sequences using `infer_trajectory.py` and the provided shell / SLURM wrappers. The reported metric is ADE (Average Displacement Error).
 
@@ -589,8 +664,8 @@ Outputs are written to `./outputs/<ckpt_name>_nuscenes_traj/`, including `ade_me
 | GEM pseudo traj | 1.63 |
 | DA3 0.35B + DA3 metric 0.35B | 2.44 |
 | DA3 1.1B + DA3 metric 0.35B | 1.12 |
-| OccAny 0.35B | 1.86 |
-| **OccAny 1.1B** | **0.90** |
+| OccAny recon 0.35B | 1.86 |
+| **OccAny+ recon 1.1B** | **0.90** |
 
 ## 🏋️ Training
 
