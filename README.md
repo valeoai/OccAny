@@ -1103,6 +1103,9 @@ tensorboard --logdir "$PROJECT/tb_log_occany/occany_recon"
 This project is licensed under the Apache License 2.0, see the [LICENSE](LICENSE.txt) file for details.
 
 ## 🙏 Acknowledgments
+This work was granted access to the HPC resources of IDRIS under the allocations AD011014102R2, AD011013540R1 made
+by GENCI. We acknowledge EuroHPC Joint Undertaking for awarding the project ID EHPC-REG-2025R01-032 access to Karolina, Czech Republic. This work was supported by the European Union’s Horizon Europe research and innovation programme under grant agreement No 101214398 (ELLIOT).
+
 We thank the authors of these excellent open-source projects:
 
 [Dust3r](https://github.com/naver/dust3r) · [Must3r](https://github.com/naver/must3r) · [Depth-Anything-3](https://github.com/ByteDance-Seed/depth-anything-3) · [SAM2](https://github.com/facebookresearch/sam2) · [SAM3](https://github.com/facebookresearch/sam3) · [viser](https://github.com/nerfstudio-project/viser)
