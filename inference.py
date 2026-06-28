@@ -422,8 +422,10 @@ if __name__ == '__main__':
             f"total parameters: {total_params:,}, trainable parameters: {trainable_params:,}"
         )
     elif args.model == "occany_da3":
-        total_params = sum(p.numel() for p in da3_model_gen.parameters())
-        trainable_params = sum(p.numel() for p in da3_model_gen.parameters() if p.requires_grad)
+        # Without --gen, only the reconstruction model is loaded (da3_model_gen is None).
+        primary_model = da3_model_gen if args.gen else da3_model_recon
+        total_params = sum(p.numel() for p in primary_model.parameters())
+        trainable_params = sum(p.numel() for p in primary_model.parameters() if p.requires_grad)
         primary_model_label = "occany_plus_gen" if args.gen else "occany_plus_recon"
         print(
             f"Model '{primary_model_label}' - total parameters: {total_params:,}, "
